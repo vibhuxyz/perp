@@ -1,7 +1,4 @@
-type OrderStatus = "resting" | "filled" | "cancelled" | "partially_filled";
-type Market = string;
-type Side = "LONG" | "SHORT";
-type OrderType = "LIMIT" | "MARKET";
+
 
 // All financial values are integer cents unless noted
 export interface Collateral {
@@ -9,19 +6,7 @@ export interface Collateral {
   marginLocked: number;
 }
 
-export interface Orders {
-  userId: number;
-  orderId: string;
-  type: Side;
-  market: Market;
-  quantity: number;
-  filledquantity: number;
-  margin: number;
-  price: number;
-  status: OrderStatus;
-  orderType: OrderType;
-  createdAt: Date;
-}
+
 
 export type PriceLevel = {
   openOrders: Orders[];
@@ -112,27 +97,3 @@ const state: EngineState = {
 
 export const MAX_LEVERAGE = 10;
 export const MAINTEN_MARGIN_RATIO = 0.1;
-
-
-function getBestPrice(side:Side , orderbook:Orderbook) {
-  
-}
-
-async function match(incomingOrder: Orders, orderbook: Orderbook) {
-
-  const oppositeBook = incomingOrder.type === "LONG" ? orderbook.asks : orderbook.bids;
-
-  //Find the best price level from oppositeBook.
-
-  
-  
-  
-    
-
-  while (incomingOrder.quantity > 0) {
-
-    // no liquidation
-    
-  }
-
-}

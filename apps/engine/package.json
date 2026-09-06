@@ -4,10 +4,10 @@
   "type": "module",
   "private": true,
   "devDependencies": {
+    "@repo/types":"workspace:*",
     "@types/bun": "latest"
   },
   "peerDependencies": {
-    "@repo/shared": "workspace:*",
     "typescript": "^5"
   }
 }

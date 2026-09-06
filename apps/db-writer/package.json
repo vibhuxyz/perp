@@ -1,5 +1,5 @@
 {
-  "name": "workers",
+  "name": "db-writer",
   "module": "index.ts",
   "type": "module",
   "private": true,

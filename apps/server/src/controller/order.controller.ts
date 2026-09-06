@@ -10,47 +10,43 @@ export const createOrder = async (
   const result = orderSchema.safeParse(req.body);
 
   if (!result.success) {
-    return res.status(401).json({
+    return res.status(400).json({
       error: "Validation failed",
       details: result.error.message,
     });
   }
-  // @ts-ignore
+
+  const {
+ market, side, type, quantity, price
+
+
+  } = result.data;
+
+
+  //@ts-ignore
   const userId = req.userId;
 
   if (!userId) {
-    return res.status(401).json({ error: "Unauthorized: User ID missing" });
+    res.status(401).json({
+      msg:"user not found"
+    })
   }
-
-  const {
-    symbol,
-    side,
-    type,
-    quantity,
-    price,
-    leverage,
-    postOnly,
-    clientOrderId,
-  } = result.data;
 
   try {
     await kafkaProducer.send({
       topic: "order.commands",
       messages: [
         {
-          key: symbol, // Partition by market symbol to prevent race conditions
+          key: market, // Partition by market symbol to prevent race conditions
           value: JSON.stringify({
             type: "PLACE_ORDER",
             payload: {
               userId,
-              symbol,
+              market,
               side,
               type,
               quantity,
               price,
-              leverage,
-              postOnly,
-              clientOrderId,
               orderId: Math.random().toString(36).substring(7),
             },
           }),

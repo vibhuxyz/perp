@@ -1,4 +1,4 @@
-import type { PriceLevel } from "../type";
+import type { PriceLevel } from "../t";
 
 const PRICE_MULT = 100;
 const QTY_MULT = 1000;
