@@ -1,6 +1,7 @@
 import type { Collateral, Fill, Market, Order, Position, Side } from "./type";
 import { Orderbook } from "./orderbook";
 import { calculatePnL } from "./calculatePnL";
+import { isLiquidatable } from "./risk";
 
 export { PriceLevel, Orderbook } from "./orderbook";
 
@@ -97,7 +98,7 @@ export class Engine {
       userId: position.userId,
       orderId: `liquidation-${Date.now()}`,
       market: position.market,
-      side: position.side === "LONG" ? "SHORT":"LONG",
+      side: position.side === "LONG" ? "SHORT" : "LONG",
       type: "MARKET",
       quantity: position.quantity,
       price: 0n,
@@ -123,12 +124,23 @@ export class Engine {
 
   }
 
+  public liquidationChecks(market: Market, currentIndexPrice: bigint): Position[] {
+    const toLiquidate: Position[] = [];
 
-  public liquidationChecks(market: Market, currentIndexPrice: bigint) {
-    // TODO: collect the positions in `market` that isLiquidatable(position, currentIndexPrice)
-    //       into a separate array FIRST — do not liquidate while iterating this.userPositions,
-    //       because liquidatePosition() mutates it (rebuilds the user's position list).
-    // TODO: then loop that array and call this.liquidatePosition(position, currentIndexPrice)
-    // TODO: return the list of liquidated positions so the caller can emit events later
+    for (const positions of this.userPositions.values()) {
+      for (const position of positions) {
+        if (position.market === market && isLiquidatable(position , currentIndexPrice)) {
+          toLiquidate.push(position)
+        }
+
+      }
+    }
+
+    for (const position of toLiquidate) {
+      this.liquidatePosition(position, currentIndexPrice);
+    }
+
+    return toLiquidate;
   }
+
 }
