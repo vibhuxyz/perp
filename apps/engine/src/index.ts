@@ -93,7 +93,7 @@ export class Engine {
 
   public liquidatePosition(position: Position, currentPrice: bigint) {
     const user = this.usersCollateral.get(position.userId)!;
-
+// 1. Create MARKET order to close the full position
     const closingOrder: Order = {
       userId: position.userId,
       orderId: `liquidation-${Date.now()}`,
@@ -110,6 +110,9 @@ export class Engine {
     const book = this.orderbooks.get(position.market)!;
     const fills = book.processOrder(closingOrder);
 
+    // 2. Settle realized PnL per fill
+    let totalPnL = 0n;
+    
     const pnl = calculatePnL(position, currentPrice)
 
     user.marginLocked -= position.margin;
