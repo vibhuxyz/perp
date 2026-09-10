@@ -1,6 +1,6 @@
-import { Engine } from "./index";
-import { Orderbook } from "./orderbook";
-import type { Order } from "./type";
+import { Engine } from "../src/core/engine";
+import { Orderbook } from "../src/core/orderbook";
+import type { Order } from "../src/types/index";
 
 console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 console.log("🧪 PERPETUAL DEX ENGINE DIAGNOSTICS");

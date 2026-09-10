@@ -1,4 +1,4 @@
-import type { Position } from "./type";
+import type { Position } from "../types/index";
 
 
 export function calculatePnL(position: Position, currentMarkPrice: bigint):bigint {

@@ -1,4 +1,4 @@
-import type { Position } from "./type";
+import type { Position } from "../types/index";
 import { calculatePnL } from "./calculatePnL";
 import { MAINTENANCE_MARGIN_RATIO, MMR_SCALE } from "./config";
 

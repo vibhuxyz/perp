@@ -1,4 +1,4 @@
-import type { Fill, Order } from "./type";
+import type { Fill, Order } from "../types/index";
 
 export class PriceLevel {
   public price: bigint;
