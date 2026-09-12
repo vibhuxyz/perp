@@ -81,10 +81,18 @@ component subscribes to the narrowest selector it can.
 
 ## Where the frontend stands today
 
-At the **OK** rung, and honestly so. `apps/web/src/pages/TradingPage.tsx` is one component
-that polls `/api/depth` and `/api/positions` on a 1s `setInterval`, holds a raw WebSocket in a
-`useEffect`, and re-renders the whole page on every message. That is the demo shape the OK rung
-permits, and it is what Rungs 2–4 dismantle.
+**Most of the GOOD rung has landed.** The structure, four stores, reconnecting socket, Zod-parsed
+API layer, Decimal preview math and lazy-loaded shell are in, and the build passes under `strict`
+with `noUncheckedIndexedAccess`.
+
+What is still OK-rung shaped, and why:
+
+* **Depth is polled every second.** The engine broadcasts fills, index ticks, funding and
+  liquidations, but not the book. This is the last polling loop and it dies when the backend
+  gets a depth channel.
+* **The chart is a placeholder box.** No `/candles` endpoint exists.
+* **Positions refetch on an interval** rather than invalidating off a WebSocket event.
+* No tests yet; no shadcn primitives yet.
 
 ---
 
@@ -128,34 +136,40 @@ Polling, one component, full re-render. All deliberate.
 **Goal:** right shape, right numbers, right types. Still single-threaded, still unoptimised.
 
 ### Foundation
-- [ ] Enable `"strict": true` and `"noUncheckedIndexedAccess": true` in `tsconfig.app.json`,
-      then fix the fallout. Everything below assumes them.
-- [ ] Adopt the folder structure (below). Move `TradingPage` into `features/trade`.
-- [ ] Dependency cleanup: add `zod`, `decimal.js`, `lucide-react`, `vitest`,
-      `@testing-library/react`; remove `axios` and `@hugeicons/*`; move `shadcn` to devDeps.
-- [ ] `shadcn/ui` init. Tailwind v4 `@theme` tokens in `src/index.css` (below).
+- [x] `"strict": true` and `"noUncheckedIndexedAccess": true` in `tsconfig.app.json`.
+- [x] Folder structure adopted; `TradingPage` replaced by `app/routes/TradePage`.
+- [x] Dependency cleanup: added `zod`, `decimal.js`, `lucide-react`, `vitest`,
+      `@testing-library/react`, `@hookform/resolvers`; removed `axios` and `@hugeicons/*`;
+      `shadcn` moved to devDeps.
+- [x] Tailwind v4 `@theme` tokens in `src/index.css`.
+- [ ] `shadcn/ui` init and move the hand-rolled inputs onto its primitives.
 
 ### Shell and layout
-- [ ] `AppShell` = Sidebar + Header + Main. Routes: Trade, Positions, History, Deposit, Settings.
-- [ ] `QueryProvider` and `ThemeProvider`.
-- [ ] `font-variant-numeric: tabular-nums` on every price so digits stop jumping.
+- [x] `AppShell` = Sidebar + Header + Main. Five routes, all lazy, preloaded on nav hover.
+- [x] `QueryProvider`.
+- [x] `tabular-nums` on prices, inputs and tables.
+- [ ] `ThemeProvider` — dark is currently hardcoded, so there is nothing to toggle yet.
 
 ### State and data
-- [ ] Four Zustand stores: `ui`, `market`, `account`, `connection`.
-- [ ] `shared/hooks/useWebSocket` — lifecycle, exponential-backoff reconnect, 30s heartbeat,
-      message routing by `type`. Out of the component, once, reused.
-- [ ] `shared/lib/decimal.ts` + `formatters.ts`. Every preview calculation — notional, margin,
-      estimated liquidation, PnL — goes through Decimal. The backend stays authoritative.
-- [ ] Typed API clients per resource in `features/*/api/`, responses parsed with Zod.
+- [x] Four Zustand stores: `ui`, `market`, `account`, `connection`.
+- [x] `shared/hooks/useWebSocket` — lifecycle, exponential backoff, 30s heartbeat, reports
+      into `connectionStore`. Opened once in `AppShell`, above the routes.
+- [x] `shared/lib/decimal.ts` + `formatters.ts` — notional, initial margin, liquidation
+      price, unrealised PnL, all through Decimal.
+- [x] `features/trade/api/tradeApi.ts` — every response parsed with Zod.
 
 ### Order ticket
-- [ ] React Hook Form + Zod resolver, `useActionState` for submit, `useFormStatus` for the button.
-- [ ] Explicit rejections: "Insufficient margin — available $412.20, required $523.50".
-      Never "Something went wrong".
+- [x] React Hook Form + `zodResolver`, live margin and estimated-liquidation preview.
+- [x] Server rejections surfaced verbatim rather than "Something went wrong".
+- [ ] Richer rejection copy (available vs required) — needs the backend to send both numbers.
 
 ### Tests
-- [ ] Vitest + RTL on the pure functions: margin, liquidation preview, fee estimate,
-      decimal formatting, orderbook aggregation.
+- [ ] Vitest + RTL on the pure functions: margin, liquidation preview, decimal formatting.
+      Vitest is installed; no tests written yet.
+
+> **Chose RHF over `useActionState`/`useFormStatus`.** The ticket needs `watch()` to drive the
+> live margin preview, which is RHF's job. Running React 19 form actions alongside it would be
+> two form systems in one component for no gain. The React 19 hooks still fit a simpler form.
 
 **Gate:** `strict` on and compiling, no `setInterval` polling for depth (needs the backend depth
 broadcast), order rejections show a real reason, calc unit tests pass.
@@ -258,10 +272,15 @@ src/
 ├── shared/
 │   ├── components/    shadcn/ui primitives
 │   ├── hooks/         useWebSocket, useDebounce, useKeyboardShortcut, useMediaQuery, useInterval
-│   ├── lib/           decimal.ts, formatters.ts, utils.ts
+│   ├── lib/           api.ts, decimal.ts, formatters.ts, utils.ts
 │   └── types/         order.ts, position.ts, candle.ts
+├── stores/            ui, market, account, connection
 └── workers/           orderBook.worker.ts, indicator.worker.ts
 ```
+
+The four cross-cutting stores live in `src/stores/` rather than inside a feature — they are the
+Trading State layer from the architecture diagram, and every feature reads them. Feature-local
+state still belongs in `features/*/store/`.
 
 Each feature owns its own `components/`, `hooks/`, `store/`, `api/`. This is deliberately not
 `components/ services/ utils/` — those three become 300-file dumping grounds.
