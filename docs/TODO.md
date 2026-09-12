@@ -18,7 +18,7 @@ is the whole point, and it is the easiest rule to break.
 
 ---
 
-## Rung 1 — OK  *(Day 1 — current)*
+## Rung 1 — OK  *(Day 1 — done)*
 
 **Goal:** an ugly end-to-end exchange. Place an order in a browser, watch it match, watch a
 position get liquidated off a mark price that is not our own last traded price. Every number
@@ -31,25 +31,30 @@ persistence = a JSON file, funding = every 10 seconds instead of every 8 hours, 
 ### Engine — split the god class
 - [x] `isLiquidatable()` in `risk/risk.ts` — equity vs maintenance margin.
 - [x] `liquidationChecks()` in `core/engine.ts` — collect-then-liquidate.
-- [ ] `core/Ledger.ts` — `lockMargin`, `unlockMargin`, `updatePosition`, `settlePnL`.
-      Move the inline margin math out of `engine.ts`; keep the known bugs, just relocate them.
-- [ ] `core/MatchingEngine.ts` — `createMarket`, `processOrder` routing to the right `Orderbook`.
-      No margin or collateral logic in here.
-- [ ] `risk/RiskManager.ts` — `checkLiquidations` using `ledger` + `matchingEngine` instead of
-      reaching into maps directly.
-- [ ] `core/Exchange.ts` — `placeOrder`: lock margin → match → update both sides per fill.
-- [ ] Delete `core/engine.ts` once `Exchange` covers it.
+- [x] `core/Ledger.ts` — `lockMargin`, `unlockMargin`, `updatePosition`, `settlePnL`, `closePosition`.
+- [x] `core/MatchingEngine.ts` — `createMarket`, `processOrder` routing to the right `Orderbook`.
+- [x] `risk/RiskManager.ts` — `checkLiquidations` driving `ledger` + `matchingEngine`.
+- [x] `core/Exchange.ts` — `placeOrder`: lock margin → match → update both sides per fill.
+- [x] Delete `core/engine.ts`.
 
 ### Everything else to "it runs"
-- [ ] `apps/mark-price-poller` — emit a price on a timer. Hardcoded walk is fine; no Binance yet.
-- [ ] Funding — a function that pays longs from shorts (or the reverse) on a short interval.
-- [ ] `apps/server` — call the engine directly from the order route. No Kafka.
-- [ ] `apps/db-writer` — dump fills and positions to a JSON file on an interval.
-- [ ] `apps/ws` — broadcast orderbook + fills to any connected client. No auth, no channels.
-- [ ] `apps/web` — one page: order form, orderbook list, positions list, all live over the WS.
+- [x] `apps/mark-price-poller` — random walk on a timer; not Binance yet, but not our own price.
+- [x] Funding — `risk/funding.ts`, pays the premium between last trade and index every 10s.
+- [x] `apps/server` — order and deposit routes call the engine directly. No Kafka.
+- [x] `apps/db-writer` — full-state JSON snapshot every 5s.
+- [x] `apps/ws` — `MarketFeed` broadcasts fills, index ticks, funding and liquidations.
+- [x] `apps/web` — one page: token, deposit, order form, depth, positions, live feed.
 
-**Gate:** `bun apps/engine/tests/test.engine.ts` runs the modular classes end to end with no
-negative balances, and the browser page shows a real fill.
+**Gate passed:** `bun apps/engine/tests/test.engine.ts` — 23/23 including no negative balances.
+End to end over REST: deposit → limit order rests → market order fills → position appears →
+depth updates → funding nets to zero across long and short.
+
+### Found while building, deferred on purpose
+- A `MARKET` order that finds no liquidity silently locks no margin and vanishes. It now reports
+  `cancelled` rather than `resting`, but the engine still has no concept of rejecting it.
+- `Orderbook` re-sorts its price keys on every order. Fine here; revisit at AWESOME, with a
+  benchmark, not before.
+- No order cancellation route exists yet, so resting margin can only be released by a fill.
 
 ---
 

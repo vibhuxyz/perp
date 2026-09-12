@@ -12,14 +12,14 @@ phases into our iterative development cycles (V0 prototype -> V4 production).
 > order we build in*.
 
 ## Current State
-*   **Current Rung:** OK — getting every component to "it runs"
-*   **Working:** Core API + JWT, matching engine (limit/market/partial fills), leverage & initial
-    margin, liquidation trigger (`isLiquidatable`, `liquidationChecks`)
-*   **Current Task:** 🚧 split the god-class engine into `Ledger` / `MatchingEngine` / `RiskManager` /
-    `Exchange`, then fill the remaining OK-rung gaps (mark price, funding, WS, UI, persistence)
-*   **Not blocked by anything** — the old test gate is now the GOOD rung, not a blocker (DECISION-007)
-*   **Upcoming Milestone:** an ugly end-to-end exchange — place an order in the browser, see it match,
-    see a position liquidate off a mark price that isn't our own last traded price.
+*   **Current Rung:** OK reached — every component runs end to end
+*   **Working:** REST order + deposit → engine → fills → positions, ticking index price driving
+    liquidation checks and funding, WebSocket feed, JSON state snapshots, single-page trading UI
+*   **Current Task:** 📌 climb to GOOD — fix the margin accounting bugs, settle liquidations from
+    actual fills, real Binance index, and write the engine test suite
+*   **Not blocked by anything** — the old test gate is the GOOD rung, not a blocker (DECISION-007)
+*   **Known and deliberate:** maker/taker margin accounting is wrong, liquidations settle off the
+    index rather than the close fills and skip the counterparty, and everything runs in one process.
 
 ---
 
@@ -51,15 +51,15 @@ The point of the rung is that the *shape* of the system is complete, not that an
 | Component | Rung | Note |
 | :--- | :--- | :--- |
 | Matching engine (`core/orderbook.ts`) | OK | Array-sorted levels, limit + market, partial fills |
-| Ledger / collateral | — | Logic exists inline in the god class, with known margin bugs |
-| Risk / liquidation | OK | Trigger works; settles off oracle price, not actual fills |
-| Mark price / oracle | — | Empty scaffold |
-| Funding | — | Not started |
-| Core API (`apps/server`) | OK | Routes + JWT; not wired to the engine |
-| WebSocket feed (`apps/ws`) | — | Empty scaffold |
-| Web UI (`apps/web`) | — | Vite scaffold only |
-| Persistence (`apps/db-writer`) | — | Empty scaffold |
-| Bots / load | — | Not started |
+| Ledger / collateral (`core/Ledger.ts`) | OK | Own class now; margin accounting still wrong |
+| Risk / liquidation (`risk/RiskManager.ts`) | OK | Settles off index price, skips the counterparty |
+| Mark price / oracle | OK | Random walk on a timer, not a real venue |
+| Funding (`risk/funding.ts`) | OK | Every 10s off last trade vs index; nets to zero |
+| Core API (`apps/server`) | OK | Calls the engine directly, in-process, no Kafka |
+| WebSocket feed (`apps/ws`) | OK | One firehose, no channels, no auth |
+| Web UI (`apps/web`) | OK | One page, polled REST plus the live feed |
+| Persistence (`apps/db-writer`) | OK | Full-state JSON rewrite every 5s |
+| Bots / load | — | Not started, lives at BEST |
 
 ---
 
