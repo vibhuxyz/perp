@@ -24,11 +24,15 @@ export class Orderbook {
   }
 
   public processOrder(order: Order): Fill[] {
-    if (order.side === "LONG") {
-      return this.matchLongOrder(order)
-    } else {
-      return this.matchShortOrder(order)
+    const fills = order.side === "LONG"
+      ? this.matchLongOrder(order)
+      : this.matchShortOrder(order);
+
+    if (fills.length > 0) {
+      this.lastTradePrice = fills[fills.length - 1]!.price;
     }
+
+    return fills;
   }
 
   private matchLongOrder(order: Order) {

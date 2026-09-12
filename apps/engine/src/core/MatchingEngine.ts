@@ -8,14 +8,19 @@ export class MatchingEngine {
     this.orderbooks = new Map();
   }
 
-  // TODO: Route the incoming order to the correct orderbook.
-  // Return the resulting fills.
-  // DO NOT handle margin or collateral here.
-  public processOrder(order: Order): Fill[] {
-    return [];
+  public createMarket(market: Market): void {
+    if (!this.orderbooks.has(market)) {
+      this.orderbooks.set(market, new Orderbook(market));
+    }
   }
 
-  // TODO: Add a new market (e.g., "BTC-PERP")
-  public createMarket(market: Market): void {
+  public processOrder(order: Order): Fill[] {
+    const book = this.orderbooks.get(order.market);
+
+    if (!book) {
+      throw new Error(`Unknown market: ${order.market}`);
+    }
+
+    return book.processOrder(order);
   }
 }

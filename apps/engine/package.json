@@ -3,8 +3,14 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun tests/test.engine.ts"
+  },
   "devDependencies": {
-    "@repo/types":"workspace:*",
+    "@repo/types": "workspace:*",
     "@types/bun": "latest"
   },
   "peerDependencies": {

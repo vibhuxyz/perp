@@ -1,197 +1,94 @@
-import { Engine } from "../src/core/engine";
-import { Orderbook } from "../src/core/orderbook";
+import { Exchange } from "../src/core/Exchange";
 import type { Order } from "../src/types/index";
 
-console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-console.log("🧪 PERPETUAL DEX ENGINE DIAGNOSTICS");
-console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+let failures = 0;
 
-const engine = new Engine();
-
-// Setup: Initialize orderbook and users with enough balance
-engine.orderbooks.set("BTC-PERP", new Orderbook("BTC-PERP"));
-
-engine.usersCollateral.set("user1", {
-  userId: "user1",
-  availableBalance: 1000000n, // 1M
-  marginLocked: 0n,
-});
-
-engine.usersCollateral.set("user2", {
-  userId: "user2",
-  availableBalance: 1000000n, // 1M
-  marginLocked: 0n,
-});
-
-console.log("✅ Setup: 2 users with 1M balance each\n");
-
-// Test 1: Maker places LIMIT order
-console.log("TEST 1: User1 (maker) places LIMIT BUY @ 50000, qty=10, 2x leverage");
-const order1: Order = {
-  userId: "user1",
-  orderId: "order1",
-  market: "BTC-PERP",
-  side: "LONG",
-  type: "LIMIT",
-  quantity: 10n,
-  price: 50000n,
-  leverage: 2n,
-  status: "resting",
-  createdAt: new Date(),
-};
-
-const user1Before = { ...engine.usersCollateral.get("user1")! };
-
-try {
-  const fills1 = engine.processOrder(order1);
-  const user1After = engine.usersCollateral.get("user1")!;
-
-  const expectedMargin = (50000n * 10n) / 2n; // 250000
-  console.log(`  Fills from this order: ${fills1.length}`);
-  console.log(`  Expected margin locked: ${expectedMargin}`);
-  console.log(`  Actual margin locked: ${user1After.marginLocked}`);
-  console.log(`  Available before: ${user1Before.availableBalance}`);
-  console.log(`  Available after: ${user1After.availableBalance}`);
-  console.log(`  ✅ PASSED\n`);
-} catch (e) {
-  console.log(`  ❌ FAILED: ${e}\n`);
+function check(label: string, actual: unknown, expected: unknown) {
+  const pass = actual === expected;
+  if (!pass) failures++;
+  console.log(`  ${pass ? "PASS" : "FAIL"}  ${label}${pass ? "" : ` — got ${actual}, want ${expected}`}`);
 }
 
-// Test 2: Taker places MARKET order (crosses and fills the maker)
-console.log("TEST 2: User2 (taker) places MARKET SELL @ market, qty=5, 2x leverage");
-const order2: Order = {
-  userId: "user2",
-  orderId: "order2",
-  market: "BTC-PERP",
-  side: "SHORT",
-  type: "MARKET",
-  quantity: 5n,
-  price: 0n,
-  leverage: 2n,
-  status: "resting",
-  createdAt: new Date(),
-};
-
-const user1BeforeFill = { ...engine.usersCollateral.get("user1")! };
-const user2BeforeFill = { ...engine.usersCollateral.get("user2")! };
-
-try {
-  const fills2 = engine.processOrder(order2);
-  const user1AfterFill = engine.usersCollateral.get("user1")!;
-  const user2AfterFill = engine.usersCollateral.get("user2")!;
-
-  console.log(`  Fills: ${fills2.length}`);
-  if (fills2.length > 0) {
-    const fill = fills2[0]!;
-    console.log(`    Fill qty: ${fill.quantity} @ ${fill.price}`);
-    console.log(`    Maker: ${fill.makerUserId}, Taker: ${fill.takerUserId}\n`);
-  }
-
-  const filledQty = 5n;
-  const filledNotional = 50000n * filledQty; // 250000
-  const filledMargin = filledNotional / 2n; // 125000
-
-  console.log(`  MAKER (User1) MARGIN ACCOUNTING:`);
-  console.log(`    Before: locked=${user1BeforeFill.marginLocked}, available=${user1BeforeFill.availableBalance}`);
-  console.log(`    After:  locked=${user1AfterFill.marginLocked}, available=${user1AfterFill.availableBalance}`);
-  console.log(`    Expected: locked should still be 250000 (maker doesn't unlock on fill)`);
-  console.log(`    Bug? Locked went from ${user1BeforeFill.marginLocked} to ${user1AfterFill.marginLocked}\n`);
-
-  console.log(`  TAKER (User2) MARGIN ACCOUNTING:`);
-  console.log(`    Before: locked=${user2BeforeFill.marginLocked}, available=${user2BeforeFill.availableBalance}`);
-  console.log(`    After:  locked=${user2AfterFill.marginLocked}, available=${user2AfterFill.availableBalance}`);
-  console.log(`    Expected: locked should be ${filledMargin} (for 5 qty @ 50k price at 2x leverage)`);
-  console.log(`    Correct? ${user2AfterFill.marginLocked === filledMargin ? "✅ YES" : "❌ NO"}\n`);
-} catch (e) {
-  console.log(`  ❌ FAILED: ${e}\n`);
+function order(o: Partial<Order> & Pick<Order, "userId" | "orderId" | "side" | "type" | "quantity">): Order {
+  return {
+    market: "BTC-PERP",
+    price: 0n,
+    leverage: 1n,
+    status: "resting",
+    createdAt: new Date(),
+    ...o,
+  };
 }
 
-// Test 3: Check positions
-console.log("TEST 3: Verify positions were created correctly");
-try {
-  const pos1 = engine.userPositions.get("user1");
-  const pos2 = engine.userPositions.get("user2");
-
-  console.log(`  User1 (maker) positions: ${pos1?.length || 0}`);
-  if (pos1 && pos1.length > 0) {
-    const p = pos1[0]!;
-    console.log(`    Side: ${p.side}, Qty: ${p.quantity}, AvgPrice: ${p.averagePrice}`);
-    console.log(`    Margin: ${p.margin}, LiqPrice: ${p.liquidationPrice}\n`);
+function assertNoNegativeBalances(exchange: Exchange, label: string) {
+  for (const user of exchange.ledger.usersCollateral.values()) {
+    check(`${label}: ${user.userId} availableBalance >= 0`, user.availableBalance >= 0n, true);
+    check(`${label}: ${user.userId} marginLocked >= 0`, user.marginLocked >= 0n, true);
   }
-
-  console.log(`  User2 (taker) positions: ${pos2?.length || 0}`);
-  if (pos2 && pos2.length > 0) {
-    const p = pos2[0]!;
-    console.log(`    Side: ${p.side}, Qty: ${p.quantity}, AvgPrice: ${p.averagePrice}`);
-    console.log(`    Margin: ${p.margin}, LiqPrice: ${p.liquidationPrice}\n`);
-  }
-} catch (e) {
-  console.log(`  ❌ FAILED: ${e}\n`);
 }
 
-// Test 4: Add more quantity to existing position
-console.log("TEST 4: User2 adds qty=5 more (total qty=10, avg price should rebalance)");
-const order3: Order = {
-  userId: "user2",
-  orderId: "order3",
-  market: "BTC-PERP",
-  side: "SHORT",
-  type: "LIMIT",
-  quantity: 5n,
-  price: 49000n, // Slightly lower
-  leverage: 2n,
-  status: "resting",
-  createdAt: new Date(),
-};
+console.log("\nMatching and margin");
 
-try {
-  engine.processOrder(order3);
-  const pos2 = engine.userPositions.get("user2");
-  if (pos2 && pos2.length > 0) {
-    const p = pos2[0]!;
-    console.log(`  After adding 5 qty:`);
-    console.log(`    Total Qty: ${p.quantity}`);
-    console.log(`    Avg Price: ${p.averagePrice}`);
-    console.log(`    Total Margin: ${p.margin}`);
-    console.log(`    Liq Price: ${p.liquidationPrice}`);
+const exchange = new Exchange();
+exchange.createMarket("BTC-PERP");
+exchange.deposit("alice", 1_000_000n);
+exchange.deposit("bob", 1_000_000n);
 
-    const expectedAvgPrice = (50000n * 5n + 49000n * 5n) / 10n; // Should be 49500
-    console.log(`    Expected Avg: ${expectedAvgPrice}`);
-    console.log(`    Match: ${p.averagePrice === expectedAvgPrice ? "✅ YES" : "⚠️ ROUNDING (bigint division)"}\n`);
-  }
-} catch (e) {
-  console.log(`  ❌ FAILED: ${e}\n`);
-}
+exchange.placeOrder(order({
+  userId: "alice", orderId: "a1", side: "LONG", type: "LIMIT",
+  quantity: 10n, price: 50_000n, leverage: 2n,
+}));
 
-// Test 5: Check remaining qty on orderbook
-console.log("TEST 5: Verify order resting on book");
-try {
-  const book = engine.orderbooks.get("BTC-PERP")!;
-  const bidsSize = book.bids.get(50000n)?.orders.length || 0;
+check("alice locks initial margin", exchange.ledger.usersCollateral.get("alice")!.marginLocked, 250_000n);
+check("alice available drops", exchange.ledger.usersCollateral.get("alice")!.availableBalance, 750_000n);
 
-  console.log(`  BTC-PERP orderbook state:`);
-  console.log(`    Bids at 50000: ${bidsSize} order(s)`);
-  if (bidsSize > 0) {
-    const remaining = book.bids.get(50000n)!.orders[0]!.quantity;
-    console.log(`    Remaining qty: ${remaining} (should be 5, since 10-5=5)\n`);
-  }
-} catch (e) {
-  console.log(`  ❌ FAILED: ${e}\n`);
-}
+const fills = exchange.placeOrder(order({
+  userId: "bob", orderId: "b1", side: "SHORT", type: "MARKET",
+  quantity: 5n, leverage: 2n,
+}));
 
-console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-console.log("SUMMARY OF ISSUES FOUND:");
-console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-console.log(`
-1. Maker margin tracking: When a fill happens, is the MAKER's margin
-   being unlocked from collateral? (It shouldn't be — only on close)
+check("one fill", fills.length, 1);
+check("fill price is the maker's", fills[0]!.price, 50_000n);
+check("bob locks margin from the fill", exchange.ledger.usersCollateral.get("bob")!.marginLocked, 125_000n);
+check("alice holds a LONG", exchange.ledger.getPosition("alice", "BTC-PERP")!.side, "LONG");
+check("bob holds a SHORT", exchange.ledger.getPosition("bob", "BTC-PERP")!.side, "SHORT");
+check("alice position size", exchange.ledger.getPosition("alice", "BTC-PERP")!.quantity, 5n);
+assertNoNegativeBalances(exchange, "after match");
 
-2. Taker margin: When a MARKET fill happens, is TAKER margin properly
-   unlocked from their collateral?
+console.log("\nLiquidation");
 
-3. Position averaging: When qty is added, does avgPrice and liquidationPrice
-   recalculate correctly with bigint division?
+const liq = new Exchange();
+liq.createMarket("BTC-PERP");
+liq.deposit("victim", 1_000_000n);
+liq.deposit("maker", 10_000_000n);
 
-4. Liquidation checks: Currently stubbed — would need risk.isLiquidatable()
-   to be implemented first.
-`);
+// Victim goes long 10 @ 50000 at 10x, so margin is only 50000.
+liq.placeOrder(order({
+  userId: "maker", orderId: "m1", side: "SHORT", type: "LIMIT",
+  quantity: 10n, price: 50_000n, leverage: 10n,
+}));
+liq.placeOrder(order({
+  userId: "victim", orderId: "v1", side: "LONG", type: "MARKET",
+  quantity: 10n, leverage: 10n,
+}));
+
+check("victim is long", liq.ledger.getPosition("victim", "BTC-PERP")!.side, "LONG");
+check("victim margin", liq.ledger.getPosition("victim", "BTC-PERP")!.margin, 50_000n);
+check("safe at 50000", liq.riskManager.checkLiquidations("BTC-PERP", 50_000n).length, 0);
+
+// Seed a bid so the forced close has something to hit.
+liq.placeOrder(order({
+  userId: "maker", orderId: "m2", side: "LONG", type: "LIMIT",
+  quantity: 10n, price: 44_000n, leverage: 10n,
+}));
+
+const liquidated = liq.riskManager.checkLiquidations("BTC-PERP", 44_000n);
+
+check("liquidated one position", liquidated.length, 1);
+check("victim position is gone", liq.ledger.getPosition("victim", "BTC-PERP"), undefined);
+check("victim margin released", liq.ledger.usersCollateral.get("victim")!.marginLocked, 0n);
+check("victim ate the loss", liq.ledger.usersCollateral.get("victim")!.availableBalance, 940_000n);
+assertNoNegativeBalances(liq, "after liquidation");
+
+console.log(`\n${failures === 0 ? "all checks passed" : `${failures} check(s) failed`}\n`);
+process.exit(failures === 0 ? 0 : 1);
