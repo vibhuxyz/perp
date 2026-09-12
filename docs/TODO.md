@@ -108,8 +108,12 @@ change nothing.
 - [ ] Sequence number on every book update, plus a snapshot endpoint to resync against.
 - [ ] Subscribe/unsubscribe protocol with channels instead of one firehose, including
       authenticated private channels for positions, orders and fills.
-- [ ] Candle storage and a `/candles` route — the chart has nothing to load without it.
-- [ ] Trade history backfill so the trade feed is not empty on page load.
+- [ ] Candle storage and a `/candles` route. This blocks the whole chart panel, which is the
+      centrepiece of the terminal — do it before any frontend chart work starts.
+- [ ] Paginated trade history and order history, so the feed is not empty on page load and
+      the history table has something to virtualize.
+- [ ] Create more than one market. `createMarket()` already supports it; only `BTC-PERP`
+      exists, so there is no watchlist and nothing to switch between.
 
 **Gate:** `kill -9` the engine mid-trading, restart, and balances and orderbook match exactly.
 
