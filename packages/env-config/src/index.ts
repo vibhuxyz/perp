@@ -33,7 +33,9 @@ export const ENV = {
   JWT_SECRET: required("JWT_SECRET"),
 
   REDIS_URL: process.env.REDIS_URL || "redis://localhost:6379",
-  KAFKA_BROKERS: (process.env.KAFKA_BROKERS || "localhost:9092").split(","),
+  // 29092 is the host-facing listener in docker-compose.dev.yml; 9092 advertises the
+  // broker's internal hostname, which does not resolve outside the compose network.
+  KAFKA_BROKERS: (process.env.KAFKA_BROKERS || "localhost:29092").split(","),
 
   SNAPSHOT_PATH: process.env.SNAPSHOT_PATH || "engine-state.json",
   WEB_URL: process.env.WEB_URL || "http://localhost:5173",
