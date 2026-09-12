@@ -4,6 +4,9 @@ Breadth-first. Every component reaches a rung before any component climbs to the
 See DECISION-006 for why, and `PROJECT_ROADMAP.md` for the ladder definition and the current
 per-component status table.
 
+The frontend follows the same rungs on the same days — see `FRONTEND.md`. Several of its
+rungs are blocked on engine work listed there; check that table before starting a UI day.
+
 **The rule:** build the feature first. Improve it when the system asks you to, not when it
 offends you. The matching engine stays naive until something concrete needs it faster — that
 is the whole point, and it is the easiest rule to break.
@@ -76,6 +79,13 @@ depth updates → funding nets to zero across long and short.
       market order sweeping a thin book, multi-user liquidation in a crash, position flip.
 - [ ] API input validation and sane error codes.
 
+### Needed by the frontend at this rung
+- [ ] Broadcast orderbook depth on the feed so the UI can stop polling `/api/depth`.
+- [ ] Ticker payload: 24h change, current funding rate, next funding time.
+- [ ] Track resting orders per user, and add a cancel route — the UI has no Open Orders
+      panel and no way to release resting margin without a fill.
+- [ ] Reject reasons in error responses specific enough to render (available vs required).
+
 **Gate:** simulate a scam wick on the local book — the risk engine ignores it because the index
 price is stable. Funding debits longs and credits shorts symmetrically.
 
@@ -93,6 +103,13 @@ change nothing.
 - [ ] `apps/db-writer` consumes `engine.events` → Redis cache + batched Postgres writes (Drizzle).
 - [ ] Read routes (`/positions/open`, `/equity/available`) served from Redis.
 - [ ] Reconciliation job: `deposits === available + locked + insurance + fees`, alarm on drift.
+
+### Needed by the frontend at this rung
+- [ ] Sequence number on every book update, plus a snapshot endpoint to resync against.
+- [ ] Subscribe/unsubscribe protocol with channels instead of one firehose, including
+      authenticated private channels for positions, orders and fills.
+- [ ] Candle storage and a `/candles` route — the chart has nothing to load without it.
+- [ ] Trade history backfill so the trade feed is not empty on page load.
 
 **Gate:** `kill -9` the engine mid-trading, restart, and balances and orderbook match exactly.
 
@@ -123,6 +140,8 @@ stop being naive — and only against a benchmark that proves the array sort is 
 - [ ] Maker/taker fee tiers.
 - [ ] Market-making bots quoting around mark price; trader bots generating flow.
 - [ ] Containerised deploy, live URL, demo accounts.
+- [ ] Move auth to `HttpOnly; Secure; SameSite` cookies with CSRF protection, so the browser
+      stops holding a JWT in `localStorage`.
 
 **Gate:** the full stack runs for an hour with bots trading and no manual intervention.
 
