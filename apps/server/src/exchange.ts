@@ -1,3 +1,4 @@
+import { ENV } from "@repo/env-config";
 import { Exchange, settleFunding, FUNDING_INTERVAL_MS, type Fill } from "engine";
 import { startPoller } from "mark-price-poller";
 import { MarketFeed } from "@repo/ws";
@@ -5,7 +6,6 @@ import { snapshot } from "db-writer";
 
 export const MARKET = "BTC-PERP";
 
-const SNAPSHOT_PATH = process.env.SNAPSHOT_PATH ?? "engine-state.json";
 const SNAPSHOT_INTERVAL_MS = 5_000;
 
 /**
@@ -14,7 +14,7 @@ const SNAPSHOT_INTERVAL_MS = 5_000;
  * which means order handling is sequential without us doing anything to arrange it.
  */
 export const exchange = new Exchange();
-export const feed = new MarketFeed(Number(process.env.WS_PORT ?? 7000));
+export const feed = new MarketFeed(ENV.WS_PORT);
 export const fills: Fill[] = [];
 
 let indexPrice = 50_000n;
@@ -53,7 +53,7 @@ export function start(): void {
   }, FUNDING_INTERVAL_MS);
 
   setInterval(() => {
-    snapshot(exchange.ledger, fills, SNAPSHOT_PATH).catch(err =>
+    snapshot(exchange.ledger, fills, ENV.SNAPSHOT_PATH).catch(err =>
       console.error("snapshot failed:", err),
     );
   }, SNAPSHOT_INTERVAL_MS);

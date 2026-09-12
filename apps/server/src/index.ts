@@ -1,4 +1,4 @@
-import "./load-env";
+import { ENV } from "@repo/env-config";
 import express from "express";
 import cors from "cors";
 import authRouter from "./router/auth.routes";
@@ -9,9 +9,8 @@ import adminRouter from "./router/admin.route";
 import { start } from "./exchange";
 
 const app = express();
-const port = Number(process.env.PORT ?? 6000);
 
-app.use(cors());
+app.use(cors({ origin: ENV.WEB_URL, credentials: true }));
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
@@ -31,6 +30,6 @@ app.use("/admin", adminRouter);
 
 start();
 
-app.listen(port, () => {
-  console.log(`server listening on http://localhost:${port}`);
+app.listen(ENV.PORT, () => {
+  console.log(`server listening on http://localhost:${ENV.PORT}`);
 });

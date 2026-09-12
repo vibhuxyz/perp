@@ -52,6 +52,7 @@
       "name": "server",
       "dependencies": {
         "@repo/db": "workspace:*",
+        "@repo/env-config": "workspace:*",
         "@repo/shared": "workspace:*",
         "@repo/ws": "workspace:*",
         "@types/express": "^5.0.6",
@@ -140,6 +141,19 @@
         "@types/pg": "^8.20.0",
         "drizzle-kit": "^0.31.10",
         "tsx": "^4.22.3",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "packages/env-config": {
+      "name": "@repo/env-config",
+      "dependencies": {
+        "dotenv": "^17.2.3",
+      },
+      "devDependencies": {
+        "@repo/typescript-config": "workspace:*",
+        "@types/bun": "latest",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -524,6 +538,8 @@
     "@redis/time-series": ["@redis/time-series@6.2.1", "", { "peerDependencies": { "@redis/client": "^6.2.1" } }, "sha512-kiYniph04dJOole+L359B6C9E+jYS2uDP7hca6Onj0xF38ZIpyxARO0Iq0W4ZRn1e8Q6vqW00QFZVSMRA/2Ijw=="],
 
     "@repo/db": ["@repo/db@workspace:packages/db"],
+
+    "@repo/env-config": ["@repo/env-config@workspace:packages/env-config"],
 
     "@repo/eslint-config": ["@repo/eslint-config@workspace:packages/eslint-config"],
 
