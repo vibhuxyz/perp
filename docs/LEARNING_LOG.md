@@ -52,6 +52,11 @@ This document continuously tracks engineering concepts learned, mistakes made, a
 ## Engineering Habits to Improve
 * Thinking about failure modes before implementation.
 * Implementing iteratively (V0 -> V4) rather than skipping to production-ready architecture.
+* **Breadth before depth.** Finish every component badly before finishing any component well.
+  The expensive bugs in a system live *between* components, and you cannot see them until all
+  the components exist. Polishing one piece in isolation feels productive and teaches the least.
+* **Let the system pull the improvement.** Upgrade a component when something concrete needs it,
+  not when it offends you. A naive orderbook that is never the bottleneck never needs a tree.
 
 ## Common Mistakes
 * *(To be updated as the project progresses)*

@@ -1,157 +1,132 @@
-# 7-Day High-Intensity Sprint: V0 to V4 Production Perpetual Exchange
+# Build Plan: Climbing the Quality Ladder
 
-A 7-day engineering plan to take the perpetual exchange from V0 (in-memory prototype) to V4 (production-grade, crash-safe, bot-seeded exchange).
+Breadth-first. Every component reaches a rung before any component climbs to the next one.
+See DECISION-006 for why, and `PROJECT_ROADMAP.md` for the ladder definition and the current
+per-component status table.
 
-Aligned strictly with the **Production Priority Stack (P1–P7)** from `docs/PROJECT_ROADMAP.md` and `docs/DECISIONS.md`.
+**The rule:** build the feature first. Improve it when the system asks you to, not when it
+offends you. The matching engine stays naive until something concrete needs it faster — that
+is the whole point, and it is the easiest rule to break.
 
----
-
-## Sprint Overview
-
-| Day | Focus | Target Versions & Priorities | Primary Deliverable |
-| :--- | :--- | :--- | :--- |
-| **Day 1** | **V1 Modular Engine & Settlement** | V1 / P1 (Risk & Ledger) | Modular `Ledger`, `MatchingEngine`, `RiskManager` with execution-fill settlement |
-| **Day 2** | **Mark Price, Funding & Margin Bugs** | V1–V2 / P1 (Perp Mechanics) | `mark-price-poller` external oracle, funding rate settlement, maker margin fix |
-| **Day 3** | **Deterministic Tests & Crash Recovery** | V2 / P2–P3 (Correctness & WAL) | Automated test suite gate, BigInt audit, Write-Ahead Log (WAL) & boot replay |
-| **Day 4** | **Insurance Fund & Bankruptcy Protection** | V2–V3 / P4 (Solvency) | Insurance fund pool, Auto-Deleveraging (ADL), background balance reconciliation |
-| **Day 5** | **Event Pipeline: Kafka Ingestion & Redis Cache** | V3 / Phase 2 & 4 (Persistence) | API Kafka producer, `db-writer` consumer, Redis user cache, batched Postgres writes |
-| **Day 6** | **Real-Time WebSockets & Trading Terminal** | V3 / Phase 5 & 6 (Clients) | `apps/ws` broadcasting orderbook & fills, `apps/web` Next.js trading UI |
-| **Day 7** | **Load Testing, Market Making Bots & Launch** | V4 / P5–P7 (Scale & Bots) | 5k req/s concurrency load test, liquidity MM bots, customer trade simulation |
+| Rung | Days | The question it answers |
+| :--- | :--- | :--- |
+| **OK** | Day 1 | Does the whole thing exist and run end to end? |
+| **GOOD** | Day 2 | Is it correct, and do tests prove it? |
+| **BETTER** | Day 3–4 | Does it survive a restart and a duplicate message? |
+| **AWESOME** | Day 5 | Is it fast, and can I see what it's doing? |
+| **BEST** | Day 6–7 | Is it solvent, deployed, and alive without me? |
 
 ---
 
-## Day 1: Modular Engine Architecture & Execution-Based Settlement (P1)
-**Goal:** Split the V0 "God Class" into clean domain components and ensure all liquidations settle against actual book fills.
+## Rung 1 — OK  *(Day 1 — current)*
 
-- [x] Implement `isLiquidatable()` in `apps/engine/src/risk/risk.ts` comparing equity to maintenance margin. *(Done)*
-- [x] Wire `liquidationChecks()` in `apps/engine/src/core/engine.ts` using collect-then-mutate. *(Done)*
-- [ ] Implement `apps/engine/src/core/Ledger.ts`:
-  - [ ] `lockMargin(userId, amount)`: Verify available balance and lock initial margin.
-  - [ ] `unlockMargin(userId, amount)`: Safely release locked margin without allowing negative values.
-  - [ ] `updatePosition(userId, market, side, fillQty, fillPrice, leverage)`: Isolated position tracking.
-  - [ ] `settlePnL(userId, pnl, marginFreed)`: Realize cash PnL into available balance on position close.
-- [ ] Implement `apps/engine/src/core/MatchingEngine.ts`:
-  - [ ] Multi-market router to individual `Orderbook` instances.
-  - [ ] Clean isolation from balance and ledger concerns.
-- [ ] Implement `apps/engine/src/risk/RiskManager.ts` & update `liquidatePosition`:
-  - [ ] Settle realized PnL per fill from `book.processOrder(closingOrder)` instead of oracle ticker.
-  - [ ] Update counterparty (maker) position on book execution.
-- [ ] Implement `apps/engine/src/core/Exchange.ts`:
-  - [ ] Orchestrate `Ledger` -> `MatchingEngine` -> `Ledger` pipeline.
-- **Verification Gate:**
-  - Run `bun apps/engine/tests/test.engine.ts` verifying modular classes run end-to-end without negative balances.
+**Goal:** an ugly end-to-end exchange. Place an order in a browser, watch it match, watch a
+position get liquidated off a mark price that is not our own last traded price. Every number
+can be wrong. Nothing may be missing.
 
----
+**Fakes are allowed and encouraged at this rung:** mark price = a number that ticks on a timer,
+persistence = a JSON file, funding = every 10 seconds instead of every 8 hours, no Kafka at all
+(direct function calls). Swap the fakes for real infrastructure at BETTER, not now.
 
-## Day 2: External Mark Price, Funding Rate & Margin Bug Fixes (P1)
-**Goal:** Protect exchange against scam wicks, implement the economic spring (funding), and resolve accounting bugs.
+### Engine — split the god class
+- [x] `isLiquidatable()` in `risk/risk.ts` — equity vs maintenance margin.
+- [x] `liquidationChecks()` in `core/engine.ts` — collect-then-liquidate.
+- [ ] `core/Ledger.ts` — `lockMargin`, `unlockMargin`, `updatePosition`, `settlePnL`.
+      Move the inline margin math out of `engine.ts`; keep the known bugs, just relocate them.
+- [ ] `core/MatchingEngine.ts` — `createMarket`, `processOrder` routing to the right `Orderbook`.
+      No margin or collateral logic in here.
+- [ ] `risk/RiskManager.ts` — `checkLiquidations` using `ledger` + `matchingEngine` instead of
+      reaching into maps directly.
+- [ ] `core/Exchange.ts` — `placeOrder`: lock margin → match → update both sides per fill.
+- [ ] Delete `core/engine.ts` once `Exchange` covers it.
 
-- [ ] Fix Maker margin release bug:
-  - [ ] Maker margin must stay locked on fill; only release on position close or order cancellation.
-- [ ] Fix Taker margin unlocking bug:
-  - [ ] Ensure market taker opening a position keeps initial margin locked.
-- [ ] Build `apps/mark-price-poller`:
-  - [ ] Connect to Binance public WebSocket / REST API for BTC/USDT price.
-  - [ ] Calculate EMA / median index price.
-  - [ ] Emit index price to `RiskManager` / engine.
-- [ ] Implement Funding Rate Engine:
-  - [ ] Calculate premium/discount: `(perpMarketPrice - indexPrice) / indexPrice`.
-  - [ ] Build 8-hour / periodic funding settlement: longs pay shorts if perp > index, shorts pay longs if perp < index.
-  - [ ] Deduct/credit funding payments directly through `Ledger.ts`.
-- **Verification Gate:**
-  - Simulate an artificial scam wick on local orderbook; verify `RiskManager` ignores it because index price is stable.
-  - Verify funding payment debits long balances and credits short balances symmetrically.
+### Everything else to "it runs"
+- [ ] `apps/mark-price-poller` — emit a price on a timer. Hardcoded walk is fine; no Binance yet.
+- [ ] Funding — a function that pays longs from shorts (or the reverse) on a short interval.
+- [ ] `apps/server` — call the engine directly from the order route. No Kafka.
+- [ ] `apps/db-writer` — dump fills and positions to a JSON file on an interval.
+- [ ] `apps/ws` — broadcast orderbook + fills to any connected client. No auth, no channels.
+- [ ] `apps/web` — one page: order form, orderbook list, positions list, all live over the WS.
+
+**Gate:** `bun apps/engine/tests/test.engine.ts` runs the modular classes end to end with no
+negative balances, and the browser page shows a real fill.
 
 ---
 
-## Day 3: Deterministic Test Suite, BigInt Audit & Write-Ahead Log (P2 & P3)
-**Goal:** Make the engine state machine 100% deterministic and crash-resilient.
+## Rung 2 — GOOD  *(Day 2)*
 
-- [ ] BigInt Precision Audit:
-  - [ ] Store cumulative notional (`totalNotional`) and cumulative quantity (`totalQuantity`) to eliminate division truncation on average entry price.
-  - [ ] Audit liquidation price and maintenance margin formulas.
-- [ ] Automated Engine Test Suite (`apps/engine/tests/`):
-  - [ ] Limit order placement, cancellation, and orderbook resting depth.
-  - [ ] Partial fills across multiple price levels.
-  - [ ] Market order sweeping thin books.
-  - [ ] Multiple concurrent user liquidations under severe price crashes.
-  - [ ] Position flip test (Long -> Short on crossing order).
-- [ ] Write-Ahead Log (WAL) Implementation:
-  - [ ] Append-only binary or JSON log writing every accepted command to disk before memory mutation.
-  - [ ] Deterministic boot recovery: engine reads WAL from disk on startup and replays commands to reconstruct state.
-- **Verification Gate:**
-  - Crash the engine process (`kill -9`) mid-trading; restart engine and verify balances and orderbooks match pre-crash state exactly.
+**Goal:** the numbers are right, and tests say so. This is where the deferred test suite lands
+(DECISION-007) and where the known money bugs finally get fixed.
 
----
+- [ ] Maker margin stays locked on fill; released only on close or cancel.
+- [ ] Taker margin stays locked when a market order opens a position.
+- [ ] `liquidatePosition()` settles from the actual close fills, not the price passed in.
+- [ ] Counterparty (maker) position updates on a liquidation fill.
+- [ ] Partial liquidation fill shrinks the position; it never silently disappears.
+- [ ] BigInt truncation audit — carry `totalNotional` + `totalQuantity` instead of re-dividing
+      for average entry price; re-check liquidation price and maintenance margin.
+- [ ] Real mark price — Binance REST/WS index, median or EMA, fed into `RiskManager`.
+- [ ] Funding on a real schedule with the real premium formula.
+- [ ] Engine test suite in `apps/engine/tests/`: resting depth, partial fills across levels,
+      market order sweeping a thin book, multi-user liquidation in a crash, position flip.
+- [ ] API input validation and sane error codes.
 
-## Day 4: Insurance Fund, ADL & Continuous Reconciliation (P4)
-**Goal:** Guarantee exchange solvency during violent market gaps and eliminate silent balance leaks.
-
-- [ ] Insurance Fund Module:
-  - [ ] Collect liquidation fees (difference between bankruptcy price and maintenance margin close) into `insuranceFundBalance`.
-  - [ ] Absorb negative balance deficits if position closes below bankruptcy price ($0 equity).
-- [ ] Auto-Deleveraging (ADL) Engine:
-  - [ ] Build priority queue sorting open positions by leverage and unrealized profit percentage.
-  - [ ] When Insurance Fund drops to 0, forcibly deleverage top profitable positions to close underwater positions without exchange loss.
-- [ ] Continuous Reconciliation Background Job:
-  - [ ] Invariant check: `Total User Deposits === Sum(Available Balances) + Sum(Margin Locked) + Insurance Fund + Realized Fees`.
-  - [ ] Emit alarm if invariant diverges by even 1 cent.
-- **Verification Gate:**
-  - Simulate a flash crash where market slips past bankruptcy; verify Insurance Fund covers deficit. Drain the fund to 0 and verify ADL successfully deleverages winning traders.
+**Gate:** simulate a scam wick on the local book — the risk engine ignores it because the index
+price is stable. Funding debits longs and credits shorts symmetrically.
 
 ---
 
-## Day 5: Production Event Pipeline — Kafka & Redis Ingestion (V3 / Phase 2 & 4)
-**Goal:** Connect the stateless API to the matching engine using Kafka as a shock absorber, and cache states in Redis.
+## Rung 3 — BETTER  *(Day 3–4)*
 
-- [ ] `apps/server` (Core API) Production Pipeline:
-  - [ ] `POST /api/v1/order`: Validate payload, sign JWT, attach idempotency key (`UUID`).
-  - [ ] Produce order commands to Kafka topic `order.commands` (partition key: `market`).
-- [ ] Engine Kafka Integration:
-  - [ ] Single-partition consumer reading `order.commands` strictly in chronological order.
-  - [ ] Publish execution results to Kafka topic `engine.events`.
-- [ ] Build `apps/db-writer`:
-  - [ ] Consume `engine.events` from Kafka.
-  - [ ] Update user available balances and open positions in Redis cache (`HSET user:collateral`).
-  - [ ] Micro-batch trades (50 trades or 500ms) into PostgreSQL using Drizzle ORM.
-- [ ] Update `apps/server` Read Routes:
-  - [ ] `GET /api/v1/positions/open/:marketId`: Read sub-millisecond from Redis.
-  - [ ] `GET /api/v1/equity/available`: Read sub-millisecond from Redis.
-- **Verification Gate:**
-  - Blast 1,000 orders via API; confirm orders sit in Kafka, execute sequentially in engine, reflect instantly in Redis, and persist in Postgres.
+**Goal:** kill the process at any moment and lose nothing. Deliver every message twice and
+change nothing.
+
+- [ ] Write-ahead log — append every accepted command to disk before mutating memory.
+- [ ] Deterministic boot replay reconstructing orderbook + positions from the WAL.
+- [ ] Idempotency keys on orders and fills; a replayed event cannot double-credit.
+- [ ] Kafka replaces the direct calls — `order.commands` keyed by market, `engine.events` out.
+- [ ] `apps/db-writer` consumes `engine.events` → Redis cache + batched Postgres writes (Drizzle).
+- [ ] Read routes (`/positions/open`, `/equity/available`) served from Redis.
+- [ ] Reconciliation job: `deposits === available + locked + insurance + fees`, alarm on drift.
+
+**Gate:** `kill -9` the engine mid-trading, restart, and balances and orderbook match exactly.
 
 ---
 
-## Day 6: Real-Time WebSockets Gateway & Trading UI (V3 / Phase 5 & 6)
-**Goal:** Broadcast sub-50ms live orderbook and fill feeds, and wire the Next.js trading terminal.
+## Rung 4 — AWESOME  *(Day 5)*
 
-- [ ] Build `apps/ws` (WebSocket Server):
-  - [ ] Subscribe to Kafka `market.events` and Redis Pub/Sub.
-  - [ ] Public channels: `orderbook:<market>` (L2 orderbook depth), `trades:<market>`, `ticker:<market>`.
-  - [ ] Private authenticated channels: `orders:<userId>`, `positions:<userId>`.
-  - [ ] Handle connection heartbeats, client reconnections, and backpressure.
-- [ ] Wire `apps/web` (Next.js Frontend):
-  - [ ] Connect order entry form to `POST /api/v1/order`.
-  - [ ] Connect live L2 orderbook visualizer to WebSocket `orderbook:BTC-PERP`.
-  - [ ] Connect real-time Positions & PnL table to WebSocket private user channel.
-- **Verification Gate:**
-  - Open trading UI in browser; place limit order and watch orderbook update live over WebSockets without page reload.
+**Goal:** fast, and visible. This is the first rung where the matching engine is allowed to
+stop being naive — and only against a benchmark that proves the array sort is the bottleneck.
+
+- [ ] Benchmark first. Record p50/p99 before changing any data structure.
+- [ ] Replace array-sorted price levels with a sorted structure *if the benchmark justifies it*.
+- [ ] Load test: concurrent order flow plus rapid index price updates, hunting margin-check races.
+- [ ] Immutable audit log of every order, fill, and liquidation.
+- [ ] Latency + throughput metrics, alerting on anomalies.
+
+**Gate:** measured p50/p99 numbers written down in this repo. No invented numbers.
 
 ---
 
-## Day 7: Load Testing, Market Making Bots & Full Deployment (V4 / P5–P7)
-**Goal:** Prove performance under concurrency, seed liquidity with bots, and deploy.
+## Rung 5 — BEST  *(Day 6–7)*
 
-- [ ] Concurrency Load Testing Harness (P5):
-  - [ ] Blast 5,000 orders/sec concurrently with 50 index price updates/sec.
-  - [ ] Verify zero margin race conditions and measure p50 (<2ms) and p99 (<10ms) latency.
-- [ ] Build Market Making (MM) Bots (P7):
-  - [ ] Create automated bot quoting bid/ask spreads at ±0.1% around Mark Price.
-  - [ ] Rebalance quotes as book fills to keep liquidity thick on both sides.
-- [ ] Build Trader Simulation Bots (P7):
-  - [ ] Random buyer/seller bots creating realistic market activity and turnover.
-- [ ] Production Containerization & Deployment:
-  - [ ] Configure `docker-compose.prod.yml` or K8s manifests for all microservices.
-  - [ ] Deploy with live demo accounts and seeded bot activity.
-- **Verification Gate:**
-  - Launch entire stack; observe bots actively maintaining a live orderbook, simulated trades filling, and system running clean for 1 hour without manual intervention.
+**Goal:** solvent under a gap, and alive without supervision.
+
+- [ ] Insurance fund collecting liquidation penalties; absorbs bankruptcy deficits.
+- [ ] Auto-Deleveraging when the fund drains — queue by leverage and unrealised profit.
+- [ ] Cross margin.
+- [ ] Maker/taker fee tiers.
+- [ ] Market-making bots quoting around mark price; trader bots generating flow.
+- [ ] Containerised deploy, live URL, demo accounts.
+
+**Gate:** the full stack runs for an hour with bots trading and no manual intervention.
+
+---
+
+## Parked
+
+Things deliberately not being done, so they stop being re-litigated.
+
+- Go/Rust port of the engine — DECISION-002, revisit only if TS is the proven bottleneck.
+- Red-black tree orderbook — Rung 4, and only against a benchmark.
+- Multi-collateral — not on the ladder at all yet.

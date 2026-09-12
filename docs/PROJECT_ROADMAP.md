@@ -4,30 +4,77 @@ This roadmap tracks the development of the Perpetual DEX/CEX. It maps the overal
 phases into our iterative development cycles (V0 prototype -> V4 production).
 
 > **Scope change (Session 10):** the target moved from "MVP that matches orders" to
-> **production-level perpetual exchange**. See DECISION-004. The phase list below is unchanged,
-> but the *priority order* is now driven by the Production Priority Stack.
+> **production-level perpetual exchange**. See DECISION-004.
+>
+> **Build order change:** we now build **breadth-first** — every component reaches a working-but-ugly
+> state before any component is improved. See DECISION-006 and the Quality Ladder below. The
+> Production Priority Stack still describes *what good looks like*; it no longer dictates *what
+> order we build in*.
 
 ## Current State
-*   **Current Phase:** Phase 3.5: The Liquidation Engine
-*   **Completed:** ✅ Phase 2 Core API, ✅ Phase 3 Matching Engine, ✅ Phase 3 V3 Leverage/Initial Margin
-*   **Current Task:** 🚧 P1 — finish `isLiquidatable()` and wire `liquidationChecks()` → `liquidatePosition()`
-*   **Blocked:** 🚫 Phase 4 (persistence) until the engine is trustworthy (test gate, DECISION-003)
-*   **Upcoming Milestone:** a position that breaches Maintenance Margin gets force-closed automatically,
-    end to end, with a mark price that is not our own last traded price.
+*   **Current Rung:** OK — getting every component to "it runs"
+*   **Working:** Core API + JWT, matching engine (limit/market/partial fills), leverage & initial
+    margin, liquidation trigger (`isLiquidatable`, `liquidationChecks`)
+*   **Current Task:** 🚧 split the god-class engine into `Ledger` / `MatchingEngine` / `RiskManager` /
+    `Exchange`, then fill the remaining OK-rung gaps (mark price, funding, WS, UI, persistence)
+*   **Not blocked by anything** — the old test gate is now the GOOD rung, not a blocker (DECISION-007)
+*   **Upcoming Milestone:** an ugly end-to-end exchange — place an order in the browser, see it match,
+    see a position liquidate off a mark price that isn't our own last traded price.
+
+---
+
+## The Quality Ladder
+
+Every component climbs the same five rungs. **No component climbs a rung until every component is
+standing on the rung below it.** Build the feature first; improve it when the system asks you to.
+
+| Rung | What it means | Allowed to be |
+| :--- | :--- | :--- |
+| **OK** | It runs. Happy path only, in-memory, hardcoded values fine. | Ugly, naive, faked dependencies |
+| **GOOD** | Edge cases handled, inputs validated, errors sane, tests exist. | Slow, single-process |
+| **BETTER** | Durable — persistence, idempotency, survives a restart. | Unoptimised |
+| **AWESOME** | Fast — real data structures, benchmarked, observable. | Single-region |
+| **BEST** | Production — scale, solvency guarantees, alerting, deployed. | — |
+
+**The pull rule (the only exception):** if building feature X genuinely needs component Y one rung
+higher, raise Y *then*, and only as far as X needs. "It would be nicer" is not a reason. The
+matching engine in particular stays naive until something concrete demands better — an array sort
+per order is fine at OK, and it gets a proper tree when load testing proves it is the bottleneck,
+not before.
+
+**At the OK rung, a dependency is allowed to be a fake.** Mark price can be a number that ticks on
+a timer. Persistence can be a JSON file. Funding can fire every 10 seconds instead of 8 hours.
+The point of the rung is that the *shape* of the system is complete, not that any part of it is good.
+
+### Where each component stands
+
+| Component | Rung | Note |
+| :--- | :--- | :--- |
+| Matching engine (`core/orderbook.ts`) | OK | Array-sorted levels, limit + market, partial fills |
+| Ledger / collateral | — | Logic exists inline in the god class, with known margin bugs |
+| Risk / liquidation | OK | Trigger works; settles off oracle price, not actual fills |
+| Mark price / oracle | — | Empty scaffold |
+| Funding | — | Not started |
+| Core API (`apps/server`) | OK | Routes + JWT; not wired to the engine |
+| WebSocket feed (`apps/ws`) | — | Empty scaffold |
+| Web UI (`apps/web`) | — | Vite scaffold only |
+| Persistence (`apps/db-writer`) | — | Empty scaffold |
+| Bots / load | — | Not started |
 
 ---
 
 ## Production Priority Stack
 
-The ordered list of what makes this "production level". Highest first — each item is only
-worth doing once the ones above it hold.
+What "production level" eventually means, highest-impact first. **This is a definition of done,
+not a build order** — under DECISION-006 we reach these by climbing the ladder across all
+components, not by finishing P1 before starting P2.
 
 ### P1 — Liquidation, Funding, and Mark Price  *(in progress)*
-The actual perpetual-futures mechanics. Nothing else matters if this is wrong — it *is* the product.
-*   [~] Maintenance Margin math — `risk.ts` has `positionEquity()` and `maintenanceMargin()`;
-        `isLiquidatable()` is still an empty stub.
-*   [ ] Close the liquidation loop — `liquidationChecks()` is TODO-only; must collect breaching
-        positions **first**, then liquidate (liquidating while iterating mutates the list).
+The actual perpetual-futures mechanics. Get these wrong and nothing else matters — they *are* the product.
+*   [x] Maintenance Margin math — `risk/risk.ts`: `positionEquity()`, `maintenanceMargin()`, `isLiquidatable()`.
+*   [x] Close the liquidation loop — `liquidationChecks()` collects breaching positions **first**,
+        then liquidates (liquidating while iterating mutates the list).
+*   [ ] Settle liquidations from the actual close fills, not the oracle price passed in.
 *   [ ] Mark price from an index/blend (external oracle), not `lastTradedPrice` — anti scam-wick.
 *   [ ] Funding settlement on a schedule (longs pay shorts / vice versa).
 *   [ ] Real-time margin tracking as the mark price ticks.
@@ -86,12 +133,11 @@ When price gaps past the liquidation price, the forced close may not cover the l
 
 ### Phase 3.5: The Liquidation Engine (Risk Management)  — P1
 *   [~] **V0:** PnL Engine — `calculatePnL()` exists, prototyped.
-*   [~] **V1:** Risk Engine — `liquidationChecks()` scans positions vs index price, currently TODO-only.
+*   [x] **V1:** Risk Engine — `liquidationChecks()` scans positions vs index price, collect-then-liquidate.
 *   [~] **V2:** Liquidation Executor — `liquidatePosition()` submits a forced MARKET order and settles
-        margin+PnL. Not wired to `liquidationChecks()` yet, and it ignores the real close fills.
-*   [~] **V2.2:** Maintenance Margin trigger — `config.ts` (MMR 2%) + `risk.ts` exist;
-        `isLiquidatable()` is an empty stub.
-*   [ ] **V2.1:** Wire `liquidationChecks()` to actually call `liquidatePosition()`.
+        margin+PnL, but ignores the real close fills.
+*   [x] **V2.2:** Maintenance Margin trigger — `risk/config.ts` (MMR 2%) + `isLiquidatable()`.
+*   [x] **V2.1:** Wire `liquidationChecks()` to actually call `liquidatePosition()`.
 *   [ ] **V3:** Cross Margin (using the entire account balance for protection).
 *   [ ] **V4:** Insurance Fund & Auto-Deleveraging (ADL).  — P4
 

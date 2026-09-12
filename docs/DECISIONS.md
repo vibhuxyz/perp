@@ -66,3 +66,42 @@ This document acts as our project's memory. Whenever we make a significant archi
     sooner, while the engine is still changing shape.
 *   **When we might change it:** Not before P2. The gate is the point.
 
+---
+### DECISION-006: Breadth-First Build with a Per-Component Quality Ladder
+*   **Decision:** We build *every* feature to a working-but-ugly state before we improve *any*
+    feature. Each component climbs the same five rungs — **OK → GOOD → BETTER → AWESOME → BEST** —
+    and no component climbs a rung until every component is standing on the rung below it.
+    A component may be pulled up early only when another feature genuinely needs it, and then
+    only as far as that feature needs. This supersedes the strict top-down ordering of the
+    Production Priority Stack in DECISION-004.
+*   **Why we chose it:** Polishing the matching engine to production quality while there is no
+    mark price, no funding, no UI and no persistence teaches one component deeply and the *system*
+    not at all. The interesting failures in an exchange live between components, and you cannot
+    see them until all the components exist. Breadth first surfaces the real integration problems
+    while each piece is still cheap to change.
+*   **Alternatives considered:** Depth-first per the Production Priority Stack (finish P1 fully,
+    then P2, …). Rejected — it front-loads the hardest correctness work onto a system whose shape
+    is still unknown, and every later component forces a rewrite of the "finished" one anyway.
+*   **Trade-offs:** For a while the whole system is simultaneously mediocre, and nothing is
+    trustworthy enough to run with real money. Naive implementations (array-sorted orderbook,
+    hardcoded index price) will be visibly wrong before they are visibly slow. We accept that:
+    at the OK rung a dependency is allowed to be a fake.
+*   **When we might change it:** If a specific component starts blocking every other piece of
+    work, it gets pulled up the ladder out of turn — that is the escape hatch, not an exception
+    to the rule.
+
+---
+### DECISION-007: The Test Gate Becomes a Rung, Not a Blocker
+*   **Decision:** DECISION-003/005's engine test suite is no longer a hard gate that blocks the
+    WAL or persistence. It becomes the **GOOD** rung of the ladder: every component gets its
+    tests when the whole system moves from OK to GOOD.
+*   **Why we chose it:** Under DECISION-006 nothing is production-facing at the OK rung, so there
+    is nothing to protect yet. The determinism argument from DECISION-005 still holds, but it
+    binds at the rung where we build the WAL (BETTER), not before.
+*   **Alternatives considered:** Keeping the hard gate. Rejected — it would stop breadth-first
+    work on day one, which is exactly the ordering DECISION-006 rejected.
+*   **Trade-offs:** We will be carrying known money-math bugs through several days of building
+    on top of them. They stay listed in `TODO.md` so they are not forgotten, not fixed on sight.
+*   **When we might change it:** The moment anything touches real money or a public deployment,
+    the gate comes back and blocks hard.
+
