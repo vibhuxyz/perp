@@ -56,12 +56,12 @@ component subscribes to the narrowest selector it can.
 | Client state | Zustand | 5.0 | orderbook, ticker, UI, connection |
 | Server state | TanStack Query | 5.100 | REST only, never live data |
 | Forms | React Hook Form | 7.76 | |
-| Validation | Zod | — | to add at GOOD |
-| Financial math | Decimal.js | — | to add at GOOD. Never `number` for price or size. |
-| Charts | KLineChart | — | 10.x, Apache 2.0, ~40KB, zero deps |
+| Validation | Zod | — | 4.x, to add at GOOD. Schema-first. |
+| Financial math | Decimal.js | — | 10.x, to add at GOOD. Never `number` for price or size. |
+| Charts | KLineChart | — | 10.0.3, Apache 2.0, ~40KB, zero deps |
 | Realtime | native WebSocket | — | no library |
 | Heavy processing | Web Workers | — | AWESOME rung, gated on profiling |
-| Local storage | Dexie (IndexedDB) | — | BETTER rung, once there is data worth caching |
+| Local storage | Dexie (IndexedDB) | — | 4.x, BETTER rung, once there is data worth caching |
 | HTTP | `fetch` | — | drop the unused `axios` dependency |
 | Testing | Vitest + RTL + Playwright | — | Vitest/RTL at GOOD, Playwright at BEST |
 
@@ -246,10 +246,15 @@ src/
 │   ├── routes/        TradePage, PositionsPage, HistoryPage, DepositPage, SettingsPage
 │   └── providers/     QueryProvider, ThemeProvider
 ├── features/
-│   ├── trade/         components/ hooks/ store/ api/ types.ts
-│   ├── positions/
-│   ├── wallet/
-│   └── settings/
+│   ├── trade/
+│   │   ├── components/   ChartPanel, OrderBook, OrderTicket, Watchlist
+│   │   ├── hooks/        useOrderBook, useCandles, usePlaceOrder
+│   │   ├── store/        tradeStore.ts
+│   │   ├── api/          tradeApi.ts
+│   │   └── types.ts
+│   ├── positions/        components/ hooks/ store/
+│   ├── wallet/           components/ hooks/
+│   └── settings/         components/ store/
 ├── shared/
 │   ├── components/    shadcn/ui primitives
 │   ├── hooks/         useWebSocket, useDebounce, useKeyboardShortcut, useMediaQuery, useInterval
@@ -359,6 +364,16 @@ into a proper `realtime/` layer. Don't build that on Day 2.
 
 **Blocked until the backend serves candles.** Nothing below is buildable before then.
 
+What v10 gives you without writing it yourself:
+
+* multiple y-axes per pane — price and volume on separate scales
+* `setDataLoader` — one API covering historical, realtime and backward paging
+* custom hotkeys via `setHotkey` / `registerHotkey`
+* zoom anchored to the crosshair rather than the viewport centre
+* continuous drawing mode and a built-in brush overlay
+* auto-resize — it observes the container, so no manual `resize()` on window change
+* inertial scrolling on touch
+
 ```tsx
 const chart = init(containerRef.current, {
   styles: {
@@ -375,11 +390,24 @@ chart.setDataLoader({
 
 chart.setSymbol(symbol);
 chart.setPeriod(interval);
+
 chart.createIndicator({ name: 'MA', calcParams: [7, 25, 99] });
+chart.createIndicator({ name: 'MACD', isStack: true });
+chart.createIndicator({ name: 'RSI', isStack: true, calcParams: [14] });
+chart.createIndicator({ name: 'BOLL', calcParams: [20, 2] });
+```
+
+Live candles arrive over the same WebSocket. `setDataLoader`'s `forward` type covers this, or
+push directly:
+
+```ts
+if (msg.type === 'candle') {
+  chartRef.current?.applyNewData([msg.candle]);
+}
 ```
 
 Hold the chart in a `useRef` and tear it down in the effect cleanup — it is imperative and must
-never drive a re-render. v10 auto-observes its container, so no manual `resize()`.
+never drive a re-render.
 
 > Verify these signatures against the KLineChart v10 docs when you implement. The snippet comes
 > from the plan, not from code we have run.
@@ -391,10 +419,30 @@ never drive a re-render. v10 auto-observes its container, so no manual `resize()
 | Position list | `AnimatePresence` + `layout`, enter/exit |
 | Order fill toast | spring scale + opacity |
 | Order ticket modal | `AnimatePresence` + slide up |
+| Watchlist reorder | `layout` + drag gesture |
 | Page transitions | fade/slide |
 
-**Do not animate with Motion:** orderbook rows (use a CSS `background-color` transition), the
-chart (it renders itself), or any number that changes every tick.
+```tsx
+<AnimatePresence mode="popLayout">
+  {positions.map(p => (
+    <motion.div
+      key={p.id}
+      layout
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: 20 }}
+      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+      className="px-4 py-2 border-b border-white/5"
+    >
+      {p.symbol} — {p.pnl}
+    </motion.div>
+  ))}
+</AnimatePresence>
+```
+
+**Do not animate with Motion:** orderbook rows (use a CSS `background-color: 100ms` transition —
+they update ~100×/sec), the chart (KLineChart renders itself), or any number that changes every
+tick.
 
 ## Tailwind v4 theme
 
@@ -414,16 +462,88 @@ chart (it renders itself), or any number that changes every tick.
   --color-text-secondary: #94a3b8;
   --font-mono: 'JetBrains Mono', monospace;
 }
+
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-text-secondary) transparent;
+}
 ```
 
 Dark, muted, green long / red short / amber warning. The numbers should dominate, not the chrome.
 
 ## Lazy loading
 
-Split all five routes. Split `ChartPanel`, `OrderTicket`, `IndicatorPanel`. Preload on nav hover.
+**Routes — the biggest win.** All five behind `lazy()` + `Suspense`.
 
-**Do not split:** the layout shell, `useWebSocket`, the Zustand stores, or anything under ~10KB —
-the extra request costs more than the bytes saved.
+```tsx
+const TradePage     = lazy(() => import('./routes/TradePage'));
+const PositionsPage = lazy(() => import('./routes/PositionsPage'));
+const HistoryPage   = lazy(() => import('./routes/HistoryPage'));
+const DepositPage   = lazy(() => import('./routes/DepositPage'));
+const SettingsPage  = lazy(() => import('./routes/SettingsPage'));
+```
+
+**Components.** `ChartPanel`, `OrderTicket`, `IndicatorPanel`.
+
+**Libraries, on demand.** Pull a heavy dependency only when the action fires:
+
+```ts
+async function exportCSV() {
+  const { toCSV } = await import('json2csv');
+}
+```
+
+**Preload on hover** so the chunk is warm before the click:
+
+```tsx
+<NavLink to="/positions" onMouseEnter={() => import('./routes/PositionsPage')}>
+```
+
+| Do not lazy-load | Why |
+| :--- | :--- |
+| Header, sidebar, layout shell | always visible, tiny |
+| `useWebSocket` | needed immediately |
+| Zustand stores | must exist before first render |
+| Anything under ~10KB | the extra request costs more than the bytes saved |
+
+## Performance strategy
+
+The techniques and where each one belongs. All of these land at the AWESOME rung and all are
+gated on a profile first — this table is the menu, not the order.
+
+| Technique | Where |
+| :--- | :--- |
+| `React.memo` | `OrderRow` — 100+ rows updating every 100ms |
+| `useMemo` | PnL, sorted positions, filtered lists |
+| `useCallback` | handlers passed to memoized children |
+| `useTransition` | positions search filter, to protect chart framerate |
+| Web Workers | orderbook computation, indicator math |
+| Virtualized lists | order history at 1000+ rows — `@tanstack/react-virtual` |
+| Lazy loading | routes, chart, order ticket |
+| Preload on hover | nav prefetches the next route |
+| Dexie | cache the last 1000 candles per symbol for instant load |
+
+The worker keeps the merge off the main thread:
+
+```ts
+// workers/orderBook.worker.ts
+self.onmessage = ({ data: { bids, asks } }) => {
+  self.postMessage(computeBookLevels(bids, asks));
+};
+```
+
+```ts
+useEffect(() => {
+  workerRef.current = new Worker(new URL('../../workers/orderBook.worker.ts', import.meta.url));
+  workerRef.current.onmessage = ({ data }) => {
+    useTradeStore.getState().setOrderBook(data);
+  };
+  return () => workerRef.current?.terminate();
+}, []);
+```
+
+Note the store write goes through `getState()`, not a hook — the worker callback is outside
+React's render cycle and must not subscribe.
 
 ---
 
