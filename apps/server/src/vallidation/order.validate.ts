@@ -6,9 +6,11 @@
     export const orderSchema = z.object({
         market: z.string(),
         side: z.enum(["LONG", "SHORT"]),
-        type: z.enum(["LIMIT"]),
+        type: z.enum(["LIMIT", "MARKET"]),
         quantity: NumericStringSchema,
-        price: NumericStringSchema,
+        // A market order has no price; it takes whatever the book offers.
+        price: NumericStringSchema.optional(),
+        leverage: NumericStringSchema.optional(),
     });
 
 

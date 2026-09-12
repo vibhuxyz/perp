@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { colletral } from "../vallidation/wallet.validate";
-import { publishCommand } from "../kafka/producer";
+import { exchange } from "../exchange";
 
 export const createWallet = async (
   req: Request,
@@ -21,18 +21,10 @@ export const createWallet = async (
 
   const { amount } = result.data;
 
-  const commandId = crypto.randomUUID();
-
-  await publishCommand(
-    "ONRAMP_DEPOSIT",
-    {
-      userId: userId.toString(),  
-      amount,
-    },
-    userId.toString(),
-  );
+  const collateral = exchange.deposit(userId.toString(), BigInt(amount));
 
   res.json({
-    msg: `Balance processing = ${amount}`,
+    availableBalance: collateral.availableBalance.toString(),
+    marginLocked: collateral.marginLocked.toString(),
   });
 };

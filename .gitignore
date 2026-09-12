@@ -36,3 +36,6 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Engine state snapshot (OK-rung stand-in for Postgres)
+engine-state.json

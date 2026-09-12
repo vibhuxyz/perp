@@ -1,10 +1,14 @@
 {
-  "name": "ws",
+  "name": "@repo/ws",
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/ws": "^8.5.13"
   },
   "peerDependencies": {
     "typescript": "^5"

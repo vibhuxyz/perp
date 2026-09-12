@@ -12,7 +12,7 @@ export function authMiddleware(
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
     if (decoded.userId) {
       //@ts-ignore
-      req.userId = userId;
+      req.userId = decoded.userId;
       next();
     } else {
       res.status(403).json({

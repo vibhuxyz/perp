@@ -7,7 +7,8 @@
     "dev": "bun --watch src/index.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/cors": "^2.8.17"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -15,6 +16,10 @@
   "dependencies": {
     "@repo/db": "workspace:*",
     "@repo/shared": "workspace:*",
+    "@repo/ws": "workspace:*",
+    "db-writer": "workspace:*",
+    "engine": "workspace:*",
+    "mark-price-poller": "workspace:*",
     "@types/express": "^5.0.6",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",

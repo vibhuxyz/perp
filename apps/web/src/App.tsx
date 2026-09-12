@@ -1,4 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom"
+import { TradingPage } from "./pages/TradingPage"
 
 
 function App() {
@@ -7,7 +8,7 @@ function App() {
     <BrowserRouter>
 
       <Routes>
-        <Route path="/" element={ } /> 
+        <Route path="/" element={<TradingPage />} />
       </Routes>
     </BrowserRouter>
   )
