@@ -10,6 +10,22 @@ interface AuthModalProps {
   defaultSignUp?: boolean;
 }
 
+function extractLoginError(data: { msg?: string; message?: string; errors?: string }): string {
+  return data?.msg || data?.message || data?.errors || 'Invalid email or password';
+}
+
+function isNetworkError(msg: string): boolean {
+  return msg.includes('fetch') || msg.includes('Failed to fetch') || msg.includes('NetworkError');
+}
+
+function buildDemoUser(email: string) {
+  return {
+    id: Date.now(),
+    email,
+    username: email.split('@')[0] || 'trader',
+  };
+}
+
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const navigate = useNavigate();
   const setAuth = useAccountStore((s) => s.setAuth);
@@ -22,39 +38,33 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
   if (!isOpen) return null;
 
+  const trySignIn = async () => {
+    const res = await fetch(`${config.apiUrl}/api/auth/signin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(extractLoginError(data));
+    if (!data.token || !data.user) throw new Error('Invalid response from server');
+
+    setAuth(data.token, data.user);
+    onClose();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      const res = await fetch(`${config.apiUrl}/api/auth/signin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.msg || data?.message || data?.errors || 'Invalid email or password');
-      }
-
-      if (data.token && data.user) {
-        setAuth(data.token, data.user);
-        onClose();
-        return;
-      }
-      throw new Error('Invalid response from server');
+      await trySignIn();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to log in';
       // Local development fallback session if server is offline
-      if (msg.includes('fetch') || msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-        const demoUser = {
-          id: Date.now(),
-          email,
-          username: email.split('@')[0] || 'trader',
-        };
-        setAuth('demo-token-' + Date.now(), demoUser);
+      if (isNetworkError(msg)) {
+        setAuth('demo-token-' + Date.now(), buildDemoUser(email));
         onClose();
         return;
       }
@@ -92,7 +102,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
         {/* Brand Logo matching Screenshot 3 with PaperTrade icon */}
         <div className="flex justify-center mb-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#00D2FF] to-[#7152FF] shadow-lg shadow-[#7152FF]/25">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-linear-to-br from-info to-[#7152FF] shadow-lg shadow-[#7152FF]/25">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M3 17L12 3L21 17L12 14L3 17Z" fill="white" fillOpacity="0.95" />
               <path d="M12 14V3L21 17L12 14Z" fill="white" fillOpacity="0.75" />
@@ -105,7 +115,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
 
         {/* Error message */}
         {error && (
-          <div className="mb-4 flex items-start gap-2 rounded-xl border border-[#FF4D5A]/30 bg-[#FF4D5A]/10 p-2.5 text-xs text-[#FF4D5A]">
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-loss/30 bg-loss/10 p-2.5 text-xs text-loss">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
@@ -114,7 +124,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Email */}
           <div className="space-y-1.5">
-            <label htmlFor="login-email" className="block text-xs font-medium text-[#8492A6]">
+            <label htmlFor="login-email" className="block text-xs font-medium text-text-secondary">
               Email
             </label>
             <input
@@ -125,13 +135,13 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full rounded-xl bg-[#161B26] border border-[#232C3E] focus:border-[#7152FF] focus:ring-1 focus:ring-[#7152FF] px-4 py-3 text-sm text-white placeholder-[#556377] outline-none transition-all"
+              className="w-full rounded-xl bg-[#161B26] border border-[#232C3E] focus:border-[#7152FF] focus:ring-1 focus:ring-[#7152FF] px-4 py-3 text-sm text-white placeholder-text-muted outline-none transition-all"
             />
           </div>
 
           {/* Password */}
           <div className="space-y-1.5">
-            <label htmlFor="login-password" className="block text-xs font-medium text-[#8492A6]">
+            <label htmlFor="login-password" className="block text-xs font-medium text-text-secondary">
               Password
             </label>
             <div className="relative flex items-center">
@@ -143,12 +153,12 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
-                className="w-full rounded-xl bg-[#161B26] border border-[#232C3E] focus:border-[#7152FF] focus:ring-1 focus:ring-[#7152FF] px-4 py-3 pr-11 text-sm text-white placeholder-[#556377] outline-none transition-all"
+                className="w-full rounded-xl bg-[#161B26] border border-[#232C3E] focus:border-[#7152FF] focus:ring-1 focus:ring-[#7152FF] px-4 py-3 pr-11 text-sm text-white placeholder-text-muted outline-none transition-all"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3.5 text-[#556377] hover:text-white transition-colors cursor-pointer p-1"
+                className="absolute right-3.5 text-text-muted hover:text-white transition-colors cursor-pointer p-1"
                 title={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -161,7 +171,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
             <button
               type="button"
               onClick={() => {}}
-              className="text-xs font-medium text-[#8492A6] hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
+              className="text-xs font-medium text-text-secondary hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
             >
               Forgot password?
             </button>
@@ -178,7 +188,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
         </form>
 
         {/* Footer Link to Create Account */}
-        <div className="mt-7 text-center text-xs text-[#8492A6]">
+        <div className="mt-7 text-center text-xs text-text-secondary">
           New to PaperTrade?{' '}
           <button
             type="button"

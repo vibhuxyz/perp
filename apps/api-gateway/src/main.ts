@@ -73,7 +73,9 @@ server.on("error", console.error);
 const cleanup = () => {
   try {
     server.close();
-  } catch {}
+  } catch {
+    // server may already be closed; nothing to do
+  }
   process.exit(0);
 };
 

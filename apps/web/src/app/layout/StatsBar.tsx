@@ -34,7 +34,7 @@ function MetricItem({ value, label, tone = 'default', badge }: MetricItemProps) 
           </span>
         )}
       </div>
-      <span className="text-[11px] text-[#8492A6] whitespace-nowrap">{label}</span>
+      <span className="text-[11px] text-text-secondary whitespace-nowrap">{label}</span>
     </div>
   );
 }
@@ -90,12 +90,11 @@ export function StatsBar() {
   const { display: pnlDisplay, tone: totalPnlTone } = computePnl(positions, markPrice);
 
   const virtualBalance = equity ? `$${formatPrice(equity.availableBalance)}` : '$0.00';
-  const availableMargin = equity ? `$${formatPrice(equity.availableBalance)}` : '$0.00';
   const usedMargin = equity ? `$${formatPrice(equity.marginLocked)}` : '$0.00';
 
   return (
     <>
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-[#1A2333] bg-[#0D111A] px-4 gap-4 overflow-x-auto scrollbar-none select-none z-10">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border-subtle bg-[#0D111A] px-4 gap-4 overflow-x-auto scrollbar-none select-none z-10">
         {/* Left: Metrics Strip */}
         <div className="flex items-center gap-7 min-w-max">
           {/* Wallet Icon Pill */}
@@ -103,30 +102,26 @@ export function StatsBar() {
             type="button"
             onClick={() => setIsDepositOpen(true)}
             title="Add practice money"
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#00F29D]/10 border border-[#00F29D]/20 text-[#00F29D] hover:bg-[#00F29D]/20 transition-all cursor-pointer"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-profit/10 border border-profit/20 text-profit hover:bg-profit/20 transition-all cursor-pointer"
           >
             <Wallet className="h-4 w-4" />
           </button>
 
           <MetricItem value={virtualBalance} label="Virtual Balance" />
 
-          <div className="h-6 w-px bg-[#1A2333]" />
+          <div className="h-6 w-px bg-border-subtle" />
 
           <MetricItem value={pnlDisplay} label="Total PnL" tone={totalPnlTone} />
 
-          <div className="h-6 w-px bg-[#1A2333]" />
-
-          <MetricItem value={availableMargin} label="Available Margin" />
-
-          <div className="h-6 w-px bg-[#1A2333]" />
+          <div className="h-6 w-px bg-border-subtle" />
 
           <MetricItem value={usedMargin} label="Used Margin" />
 
-          <div className="h-6 w-px bg-[#1A2333]" />
+          <div className="h-6 w-px bg-border-subtle" />
 
           <MetricItem value={String(positions.length)} label="Open Positions" />
 
-          <div className="h-6 w-px bg-[#1A2333]" />
+          <div className="h-6 w-px bg-border-subtle" />
 
           <MetricItem value={String(trades.length)} label="Fills & Trades" />
         </div>
@@ -144,15 +139,15 @@ export function StatsBar() {
           </button>
 
           {/* Practice Mode Callout Card */}
-          <div className="flex items-center gap-3 rounded-xl border border-[#1A2333] bg-[#111622] px-3.5 py-1.5 shrink-0 shadow-xs">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#00F29D]/10 text-[#00F29D]">
-              <Trophy className="h-4 w-4 text-[#00F29D]" />
+          <div className="flex items-center gap-3 rounded-xl border border-border-subtle bg-[#111622] px-3.5 py-1.5 shrink-0 shadow-xs">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-profit/10 text-profit">
+              <Trophy className="h-4 w-4 text-profit" />
             </div>
             <div className="flex flex-col">
               <span className="text-xs font-bold text-white leading-tight">
-                You're in Practice Mode
+                You&apos;re in Practice Mode
               </span>
-              <span className="text-[11px] text-[#8492A6] leading-tight">
+              <span className="text-[11px] text-text-secondary leading-tight">
                 Trade with virtual money and learn risk-free.
               </span>
             </div>

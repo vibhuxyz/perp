@@ -7,11 +7,14 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "bun tests/test.engine.ts"
+    "test": "bun tests/test.engine.ts",
+    "lint": "eslint ."
   },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
     "@repo/types": "workspace:*",
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "eslint": "^9.39.1"
   },
   "peerDependencies": {
     "typescript": "^5"

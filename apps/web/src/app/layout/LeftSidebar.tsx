@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   CandlestickChart,
@@ -13,6 +14,7 @@ import {
   PanelLeftOpen,
 } from 'lucide-react';
 import { useUiStore } from '@/stores/ui.store';
+import { ProgressGauge } from './ProgressGauge';
 
 const MENU_ITEMS = [
   { to: '/',            label: 'Trade',        icon: CandlestickChart, end: true },
@@ -25,49 +27,23 @@ const MENU_ITEMS = [
   { to: '/achievements',label: 'Achievements', icon: Award,           end: false },
 ];
 
-function ProgressGauge({ percent = 60, compact = false }: { percent?: number; compact?: boolean }) {
-  const radius = compact ? 16 : 22;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (percent / 100) * circumference;
-  const size = compact ? 40 : 56;
-
-  return (
-    <div className={`relative flex items-center justify-center shrink-0 ${compact ? 'w-10 h-10' : 'w-14 h-14'}`}>
-      <svg className={`${compact ? 'w-10 h-10' : 'w-14 h-14'} -rotate-90`} viewBox={`0 0 ${size} ${size}`}>
-        {/* Track */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="#1B2435"
-          strokeWidth={compact ? 3 : 4}
-          fill="none"
-        />
-        {/* Progress */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="#00F29D"
-          strokeWidth={compact ? 3 : 4}
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          fill="none"
-          className="transition-all duration-700 ease-out"
-        />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className={`${compact ? 'text-[10px]' : 'text-xs'} font-bold text-white tabular-nums`}>
-          {percent}%
-        </span>
-      </div>
-    </div>
-  );
-}
-
 export function LeftSidebar() {
   const { sidebarCollapsed, toggleSidebar } = useUiStore();
+  const [learnProgress, setLearnProgress] = useState(0);
+
+  useEffect(() => {
+    const checkProgress = () => {
+      try {
+        const stored = localStorage.getItem('papertrade_learn_progress');
+        setLearnProgress(stored ? Number(stored) : 0);
+      } catch {
+        setLearnProgress(0);
+      }
+    };
+    checkProgress();
+    window.addEventListener('storage', checkProgress);
+    return () => window.removeEventListener('storage', checkProgress);
+  }, []);
 
   return (
     <aside
@@ -80,19 +56,19 @@ export function LeftSidebar() {
       <div className="flex flex-col">
         {!sidebarCollapsed ? (
           /* Expanded Promo Box */
-          <div className="p-3.5 m-2.5 rounded-xl bg-gradient-to-b from-[#131926] to-[#0E131E] border border-[#1A2333] relative">
+          <div className="p-3.5 m-2.5 rounded-xl bg-linear-to-b from-[#131926] to-[#0E131E] border border-border-subtle relative">
             <button
               type="button"
               onClick={toggleSidebar}
               title="Collapse sidebar"
-              className="absolute top-2.5 right-2.5 text-[#8492A6] hover:text-white transition-colors cursor-pointer"
+              className="absolute top-2.5 right-2.5 text-text-secondary hover:text-white transition-colors cursor-pointer"
             >
               <PanelLeftClose className="h-3.5 w-3.5" />
             </button>
             <h2 className="text-sm font-extrabold text-white leading-tight pr-5">
               Practice. Learn.<br />Trade.
             </h2>
-            <p className="mt-1 text-[11px] text-[#8492A6] leading-relaxed">
+            <p className="mt-1 text-[11px] text-text-secondary leading-relaxed">
               Real markets. Fake money.<br />Real skills for the real world.
             </p>
             <NavLink
@@ -105,12 +81,12 @@ export function LeftSidebar() {
           </div>
         ) : (
           /* Collapsed Top: Toggle Button + Learn Shortcut */
-          <div className="flex flex-col items-center gap-2 pt-3 pb-1 border-b border-[#1A2333]/50">
+          <div className="flex flex-col items-center gap-2 pt-3 pb-1 border-b border-border-subtle/50">
             <button
               type="button"
               onClick={toggleSidebar}
               title="Expand sidebar"
-              className="p-2 rounded-lg text-[#8492A6] hover:text-white hover:bg-[#131824] transition-colors cursor-pointer"
+              className="p-2 rounded-lg text-text-secondary hover:text-white hover:bg-bg-elevated transition-colors cursor-pointer"
             >
               <PanelLeftOpen className="h-4 w-4" />
             </button>
@@ -124,7 +100,7 @@ export function LeftSidebar() {
           </div>
         )}
 
-        {!sidebarCollapsed && <div className="h-px bg-[#1A2333] mx-3 my-1" />}
+        {!sidebarCollapsed && <div className="h-px bg-border-subtle mx-3 my-1" />}
 
         {/* Navigation Menu Links */}
         <nav className={`flex flex-col gap-1 ${sidebarCollapsed ? 'px-2 py-2 items-center' : 'p-2'}`}>
@@ -150,11 +126,11 @@ export function LeftSidebar() {
                 <>
                   {/* Left active cyan bar indicator */}
                   {isActive && (
-                    <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-[#00D2FF]" />
+                    <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-info" />
                   )}
                   <Icon
                     className={`h-4 w-4 shrink-0 transition-colors ${
-                      isActive ? 'text-[#00D2FF]' : 'text-[#6A788E] group-hover:text-white'
+                      isActive ? 'text-info' : 'text-[#6A788E] group-hover:text-white'
                     }`}
                   />
                   {!sidebarCollapsed && <span>{label}</span>}
@@ -169,17 +145,19 @@ export function LeftSidebar() {
       <div className={sidebarCollapsed ? 'p-2 flex flex-col items-center mt-auto pb-3' : 'p-2.5 mt-auto'}>
         {!sidebarCollapsed ? (
           /* Expanded Progress Card */
-          <div className="rounded-xl border border-[#1A2333] bg-[#111622] p-3 flex flex-col gap-2.5 shadow-sm">
+          <div className="rounded-xl border border-border-subtle bg-[#111622] p-3 flex flex-col gap-2.5 shadow-sm">
             <span className="text-xs font-semibold text-white">Your Progress</span>
             <div className="flex items-center gap-3">
-              <ProgressGauge percent={60} />
-              <p className="text-[11px] text-[#8492A6] leading-tight">
-                Complete 5 lessons to unlock advanced strategies.
+              <ProgressGauge percent={learnProgress} />
+              <p className="text-[11px] text-text-secondary leading-tight">
+                {learnProgress > 0
+                  ? 'Complete lessons to master trading strategies.'
+                  : 'Start lesson 1 to learn perpetual futures risk-free.'}
               </p>
             </div>
             <NavLink
               to="/learn"
-              className="flex items-center justify-center w-full rounded-lg bg-[#182132] hover:bg-[#202C42] border border-[#233047] text-[#00D2FF] text-xs font-semibold py-1.5 transition-colors cursor-pointer"
+              className="flex items-center justify-center w-full rounded-lg bg-[#182132] hover:bg-[#202C42] border border-[#233047] text-info text-xs font-semibold py-1.5 transition-colors cursor-pointer"
             >
               Continue Learning
             </NavLink>
@@ -188,10 +166,10 @@ export function LeftSidebar() {
           /* Collapsed Mini Progress Gauge */
           <NavLink
             to="/learn"
-            title="Your Progress: 60% - Click to continue learning"
-            className="flex flex-col items-center p-1.5 rounded-xl hover:bg-[#131824] transition-colors"
+            title={`Your Progress: ${learnProgress}% - Click to continue learning`}
+            className="flex flex-col items-center p-1.5 rounded-xl hover:bg-bg-elevated transition-colors"
           >
-            <ProgressGauge percent={60} compact />
+            <ProgressGauge percent={learnProgress} compact />
           </NavLink>
         )}
       </div>

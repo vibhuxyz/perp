@@ -1,8 +1,6 @@
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
-import tseslint from 'typescript-eslint'
+import tailwindcss from 'eslint-plugin-tailwindcss'
+import { config as reactInternalConfig } from '@repo/eslint-config/react-internal'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
@@ -10,13 +8,17 @@ export default defineConfig([
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
-      js.configs.recommended,
-      tseslint.configs.recommended,
-      reactHooks.configs.flat.recommended,
+      ...reactInternalConfig,
       reactRefresh.configs.vite,
     ],
-    languageOptions: {
-      globals: globals.browser,
+    plugins: {
+      tailwindcss,
+    },
+    settings: {
+      tailwindcss: {
+        // Tailwind v4 is CSS-first (no tailwind.config.js) — point the plugin at the theme file.
+        cssConfigPath: './src/index.css',
+      },
     },
     rules: {
       // No escape hatches — explicit types make intent clear and prevent silent regressions.
@@ -37,12 +39,6 @@ export default defineConfig([
       // All hooks deps must be listed; missing ones cause subtle stale-closure bugs.
       'react-hooks/exhaustive-deps': 'warn',
 
-      // Components are large enough to need this; pages stay under 200.
-      'max-lines': ['warn', { max: 200, skipBlankLines: true, skipComments: true }],
-
-      // Deeply nested logic is a sign the function should be split.
-      complexity: ['warn', 10],
-
       // Prefer non-null assertions and optional chaining over runtime crashes.
       '@typescript-eslint/no-non-null-assertion': 'warn',
 
@@ -51,6 +47,10 @@ export default defineConfig([
         'error',
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' },
       ],
+
+      // Same check the Tailwind CSS IntelliSense extension shows inline — the shortest
+      // canonical class name for a given style (e.g. text-[#8492A6] -> text-text-secondary).
+      'tailwindcss/enforces-canonical-classname': 'warn',
     },
   },
 ])

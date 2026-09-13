@@ -29,14 +29,13 @@ router.get("/depth/:market", (req, res) => {
   });
 });
 
-router.get("/positions", (req, res, next) => {
+router.get("/positions", (req, res) => {
   const authHeader = (req.headers.authorization || req.headers.token) as string;
   if (!authHeader) {
     return res.json([]);
   }
 
   return authMiddleware(req, res, () => {
-    //@ts-ignore
     const positions = exchange.ledger.userPositions.get(String(req.userId)) ?? [];
 
     res.json(
@@ -52,14 +51,13 @@ router.get("/positions", (req, res, next) => {
   });
 });
 
-router.post("/positions/close", (req, res, next) => {
+router.post("/positions/close", (req, res) => {
   const authHeader = (req.headers.authorization || req.headers.token) as string;
   if (!authHeader) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
   return authMiddleware(req, res, () => {
-    //@ts-ignore
     const userId = String(req.userId);
     const { market } = req.body;
     if (!market) {
@@ -86,7 +84,7 @@ router.post("/positions/close", (req, res, next) => {
   });
 });
 
-router.get("/equity", (req, res, next) => {
+router.get("/equity", (req, res) => {
   const authHeader = (req.headers.authorization || req.headers.token) as string;
   if (!authHeader) {
     return res.json({
@@ -96,7 +94,6 @@ router.get("/equity", (req, res, next) => {
   }
 
   return authMiddleware(req, res, () => {
-    //@ts-ignore
     const userId = String(req.userId);
     let collateral = exchange.ledger.usersCollateral.get(userId);
 

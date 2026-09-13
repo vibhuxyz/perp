@@ -21,35 +21,35 @@ export function StatusBar() {
   }, []);
 
   return (
-    <footer className="h-7 shrink-0 border-t border-[#1A2333] bg-[#0A0D14] px-4 flex items-center justify-between text-[11px] text-[#8492A6] select-none z-20">
+    <footer className="h-7 shrink-0 border-t border-border-subtle bg-[#0A0D14] px-4 flex items-center justify-between text-[11px] text-text-secondary select-none z-20">
       {/* Left system status */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-1.5">
           <span className="relative flex h-2 w-2">
             {isConnected && (
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00F29D] opacity-75" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-profit opacity-75" />
             )}
             <span
               className={`relative inline-flex rounded-full h-2 w-2 ${
-                isConnected ? 'bg-[#00F29D]' : 'bg-[#F5B942]'
+                isConnected ? 'bg-profit' : 'bg-warning'
               }`}
             />
           </span>
           <span className="text-white font-medium">All Systems Operational</span>
         </div>
 
-        <div className="h-3 w-px bg-[#1A2333]" />
+        <div className="h-3 w-px bg-border-subtle" />
 
         <div className="flex items-center gap-1">
           <span>Market Data</span>
-          <span className="text-[#00F29D] font-mono font-medium">24 ms</span>
+          <span className="text-profit font-mono font-medium">24 ms</span>
         </div>
 
-        <div className="h-3 w-px bg-[#1A2333]" />
+        <div className="h-3 w-px bg-border-subtle" />
 
         <span>Trading Engine (Demo)</span>
 
-        <div className="h-3 w-px bg-[#1A2333]" />
+        <div className="h-3 w-px bg-border-subtle" />
 
         <span>Last Updated: <span className="font-mono text-white/80">{utcTime} (UTC)</span></span>
       </div>

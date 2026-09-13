@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from "express";
+import type { Request, Response } from "express";
 import {
   marketSchema,
   userSignInSchema,
@@ -7,14 +7,25 @@ import {
 import { collateralTable, db, marketTable, usersTable } from "@repo/db";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { publishCommand } from "../kafka/producer";
+import { signAuthTokens, authErrorMessage } from "../lib/authTokens";
 
-export const signUp = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+async function findUserByEmailOrUsername(email?: string, username?: string) {
+  if (email) {
+    const [found] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+    return found;
+  }
+  if (username) {
+    const [found] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.username, username));
+    return found;
+  }
+  return null;
+}
+
+export const signUp = async (req: Request, res: Response) => {
   const result = userSignUpSchema.safeParse(req.body);
 
   if (!result.success) {
@@ -69,29 +80,7 @@ export const signUp = async (
       locked: "0",
     });
 
-    const accessSecret =
-      process.env.ACCESS_TOKEN_JWT_SECRET_KEY ||
-      process.env.JWT_SECRET ||
-      "change-me";
-    const refreshSecret =
-      process.env.REFRESH_TOKEN_JWT_SECRET_KEY || accessSecret;
-
-    const token = jwt.sign(
-      {
-        userId: newUser.id,
-        email: newUser.email,
-        username: newUser.username,
-        isAdmin: newUser.isAdmin,
-      },
-      accessSecret,
-      { expiresIn: "7d" },
-    );
-
-    const refreshToken = jwt.sign(
-      { userId: newUser.id },
-      refreshSecret,
-      { expiresIn: "30d" },
-    );
+    const { token, refreshToken } = signAuthTokens(newUser);
 
     return res.status(201).json({
       success: true,
@@ -101,20 +90,16 @@ export const signUp = async (
       refreshToken,
       user: newUser,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("[Auth] Signup error:", err);
     return res.status(500).json({
       success: false,
-      msg: err.message || "Failed to create account",
+      msg: authErrorMessage(err, "Failed to create account"),
     });
   }
 };
 
-export const signIn = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const signIn = async (req: Request, res: Response) => {
   const result = userSignInSchema.safeParse(req.body);
 
   if (!result.success) {
@@ -128,20 +113,7 @@ export const signIn = async (
   const { email, username, password } = result.data;
 
   try {
-    let existingUser = null;
-    if (email) {
-      const [found] = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.email, email));
-      existingUser = found;
-    } else if (username) {
-      const [found] = await db
-        .select()
-        .from(usersTable)
-        .where(eq(usersTable.username, username));
-      existingUser = found;
-    }
+    const existingUser = await findUserByEmailOrUsername(email, username);
 
     const DUMMY_HASH =
       "$2a$10$vI8aWBnW3fID.ZQ4/zo1G.q1lRps.9cGLcZEiGDMVr5yUP1KUOYTa";
@@ -156,29 +128,7 @@ export const signIn = async (
       });
     }
 
-    const accessSecret =
-      process.env.ACCESS_TOKEN_JWT_SECRET_KEY ||
-      process.env.JWT_SECRET ||
-      "change-me";
-    const refreshSecret =
-      process.env.REFRESH_TOKEN_JWT_SECRET_KEY || accessSecret;
-
-    const token = jwt.sign(
-      {
-        userId: existingUser.id,
-        email: existingUser.email,
-        username: existingUser.username,
-        isAdmin: existingUser.isAdmin,
-      },
-      accessSecret,
-      { expiresIn: "7d" },
-    );
-
-    const refreshToken = jwt.sign(
-      { userId: existingUser.id },
-      refreshSecret,
-      { expiresIn: "30d" },
-    );
+    const { token, refreshToken } = signAuthTokens(existingUser);
 
     const user = {
       id: existingUser.id,
@@ -195,17 +145,16 @@ export const signIn = async (
       refreshToken,
       user,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("[Auth] Signin error:", err);
     return res.status(500).json({
       success: false,
-      msg: err.message || "Failed to sign in",
+      msg: authErrorMessage(err, "Failed to sign in"),
     });
   }
 };
 
 export const getMe = async (req: Request, res: Response) => {
-  // @ts-ignore
   const userId = req.userId;
   if (!userId) {
     return res.status(401).json({ success: false, msg: "Unauthorized" });
@@ -240,17 +189,13 @@ export const getMe = async (req: Request, res: Response) => {
         locked: "0",
       },
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("[Auth] GetMe error:", err);
     return res.status(500).json({ success: false, msg: "Failed to fetch user" });
   }
 };
 
-export const createMarket = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const createMarket = async (req: Request, res: Response) => {
   const result = marketSchema.safeParse(req.body);
 
   if (!result.success) {

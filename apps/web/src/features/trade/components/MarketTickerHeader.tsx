@@ -22,15 +22,41 @@ function MetricCell({ label, value, subValue, tone = 'default' }: MetricCellProp
 
   return (
     <div className="flex flex-col justify-center min-w-max">
-      <span className="text-[10px] text-[#8492A6] font-medium leading-none mb-1">{label}</span>
+      <span className="text-[10px] text-text-secondary font-medium leading-none mb-1">{label}</span>
       <div className="flex items-center gap-1.5 leading-none">
         <span className={`text-xs font-bold font-mono tabular-nums ${toneClass}`}>{value}</span>
         {subValue && (
-          <span className="text-[11px] font-mono text-[#8492A6] tabular-nums">{subValue}</span>
+          <span className="text-[11px] font-mono text-text-secondary tabular-nums">{subValue}</span>
         )}
       </div>
     </div>
   );
+}
+
+function computePriceChange(lastTradePrice: string | null, indexPrice: string | null): { display: string; isPositive: boolean } {
+  if (!lastTradePrice || !indexPrice) return { display: '—', isPositive: true };
+  try {
+    const pct = new Decimal(lastTradePrice).minus(indexPrice).div(indexPrice).times(100);
+    return { display: `${pct.gte(0) ? '+' : ''}${pct.toFixed(2)}%`, isPositive: pct.gte(0) };
+  } catch {
+    return { display: '—', isPositive: true };
+  }
+}
+
+// Funding rate premium (settles every 10s per Day 1 spec)
+function computeFundingRate(lastTradePrice: string | null, indexPrice: string | null): string {
+  if (!lastTradePrice || !indexPrice) return '—';
+  try {
+    const rate = new Decimal(lastTradePrice).minus(indexPrice).div(indexPrice).times(100);
+    return `${rate.abs().toFixed(4)}%`;
+  } catch {
+    return '—';
+  }
+}
+
+function computeSpread(bestBid: string | undefined | null, bestAsk: string | undefined | null): string {
+  if (!bestBid || !bestAsk) return '—';
+  return `$${new Decimal(bestAsk).minus(bestBid).toFixed(2)}`;
 }
 
 export function MarketTickerHeader() {
@@ -41,43 +67,20 @@ export function MarketTickerHeader() {
   const bestBid = useMarketStore(selectBestBid);
   const bestAsk = useMarketStore(selectBestAsk);
 
-  // Real engine prices
-  const currentPrice = lastTradePrice ?? indexPrice ?? '50000';
-  const displayPrice = formatPrice(currentPrice);
+  // Real engine prices — no fake fallback if no trades have executed
+  const displayPrice = lastTradePrice ? formatPrice(lastTradePrice) : '—';
   const displayMarkPrice = indexPrice ? formatPrice(indexPrice) : '—';
   const displayIndexPrice = indexPrice ? formatPrice(indexPrice) : '—';
 
-  // Compute price change vs index
-  let priceChangeDisplay = '+0.00%';
-  let isPositiveChange = true;
-  if (lastTradePrice && indexPrice) {
-    try {
-      const diff = new Decimal(lastTradePrice).minus(indexPrice);
-      const pct = diff.div(indexPrice).times(100);
-      priceChangeDisplay = `${pct.gte(0) ? '+' : ''}${pct.toFixed(2)}%`;
-      isPositiveChange = pct.gte(0);
-    } catch {
-      priceChangeDisplay = '+0.00%';
-    }
-  }
+  const { display: priceChangeDisplay, isPositive: isPositiveChange } = computePriceChange(lastTradePrice, indexPrice);
+  const fundingRateStr = computeFundingRate(lastTradePrice, indexPrice);
 
-  // Funding rate premium (settles every 10s per Day 1 spec)
-  let fundingRateStr = '0.0100%';
-  if (lastTradePrice && indexPrice) {
-    try {
-      const diff = new Decimal(lastTradePrice).minus(indexPrice);
-      const rate = diff.div(indexPrice).times(100);
-      fundingRateStr = `${rate.abs().toFixed(4)}%`;
-    } catch {
-      fundingRateStr = '0.0100%';
-    }
-  }
-
-  const highDisplay = high24h ? formatPrice(high24h) : displayPrice;
-  const lowDisplay = low24h ? formatPrice(low24h) : displayPrice;
+  const highDisplay = high24h ? `$${formatPrice(high24h)}` : '—';
+  const lowDisplay = low24h ? `$${formatPrice(low24h)}` : '—';
+  const spreadDisplay = computeSpread(bestBid, bestAsk);
 
   return (
-    <div className="flex h-14 shrink-0 items-center justify-between border-b border-[#1A2333] bg-[#0E121B] px-4 gap-6 select-none z-10">
+    <div className="flex h-14 shrink-0 items-center justify-between border-b border-border-subtle bg-bg-card px-4 gap-6 select-none z-10">
       {/* Left: Asset Pair info & Real-time Price */}
       <div className="flex items-center gap-4 min-w-max">
         {/* Bitcoin Icon */}
@@ -91,22 +94,22 @@ export function MarketTickerHeader() {
         <div className="flex flex-col">
           <button
             type="button"
-            className="flex items-center gap-1.5 text-sm font-bold text-white hover:text-[#00D2FF] transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 text-sm font-bold text-white hover:text-info transition-colors cursor-pointer"
           >
             <span>BTC-PERP</span>
-            <ChevronDown className="h-3.5 w-3.5 text-[#8492A6]" />
+            <ChevronDown className="h-3.5 w-3.5 text-text-secondary" />
           </button>
-          <span className="text-[11px] text-[#8492A6] font-medium leading-none">Bitcoin Perpetual</span>
+          <span className="text-[11px] text-text-secondary font-medium leading-none">Bitcoin Perpetual</span>
         </div>
 
         {/* Live Market Price */}
         <div className="flex items-baseline gap-2.5 ml-2">
-          <span className="text-xl font-extrabold font-mono text-[#00F29D] tabular-nums tracking-tight">
-            ${displayPrice}
+          <span className="text-xl font-extrabold font-mono text-profit tabular-nums tracking-tight">
+            {displayPrice !== '—' ? `$${displayPrice}` : '—'}
           </span>
           <span
             className={`text-xs font-semibold font-mono tabular-nums ${
-              isPositiveChange ? 'text-[#00F29D]' : 'text-[#FF4D5A]'
+              isPositiveChange ? 'text-profit' : 'text-loss'
             }`}
           >
             {priceChangeDisplay}
@@ -135,30 +138,28 @@ export function MarketTickerHeader() {
 
         <MetricCell
           label="24h High"
-          value={`$${highDisplay}`}
+          value={highDisplay}
         />
 
         <MetricCell
           label="24h Low"
-          value={`$${lowDisplay}`}
+          value={lowDisplay}
         />
 
-        {bestBid && bestAsk && (
-          <MetricCell
-            label="Spread"
-            value={`$${new Decimal(bestAsk).minus(bestBid).toFixed(2)}`}
-          />
-        )}
+        <MetricCell
+          label="Spread"
+          value={spreadDisplay}
+        />
       </div>
 
       {/* Right: Favorite star */}
       <div className="flex items-center pl-2">
         <button
           type="button"
-          className="p-1.5 rounded-lg text-[#F5B942] hover:bg-[#131824] transition-colors cursor-pointer"
+          className="p-1.5 rounded-lg text-warning hover:bg-bg-elevated transition-colors cursor-pointer"
           title="Toggle favorite"
         >
-          <Star className="h-4 w-4 fill-[#F5B942] stroke-[#F5B942]" />
+          <Star className="h-4 w-4 fill-warning stroke-warning" />
         </button>
       </div>
     </div>

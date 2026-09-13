@@ -78,8 +78,12 @@ proxyRouter.use("/auth", authRateLimiter, proxy(upstreamServices.auth, createPro
 proxyRouter.use("/api/order", proxy(upstreamServices.order, createProxyOptions()));
 proxyRouter.use("/order", proxy(upstreamServices.order, createProxyOptions((url) => `/api${url}`)));
 
-proxyRouter.use("/api/market", proxy(upstreamServices.market, createProxyOptions()));
-proxyRouter.use("/market", proxy(upstreamServices.market, createProxyOptions((url) => `/api${url}`)));
+// The market service doesn't nest its routes under /market — apps/server's
+// market.route.ts mounts /depth/:market, /positions, /positions/close, /equity and
+// /markets directly on /api, so each real path needs its own proxy rule here.
+for (const marketPath of ["/api/depth", "/api/positions", "/api/equity", "/api/markets"]) {
+  proxyRouter.use(marketPath, proxy(upstreamServices.market, createProxyOptions()));
+}
 
 proxyRouter.use("/api/wallet", proxy(upstreamServices.wallet, createProxyOptions()));
 proxyRouter.use("/wallet", proxy(upstreamServices.wallet, createProxyOptions((url) => `/api${url}`)));

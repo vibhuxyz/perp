@@ -11,7 +11,8 @@
   "scripts": {
     "dev": "bun --watch src/main.ts",
     "build": "tsc",
-    "start": "bun src/main.ts"
+    "start": "bun src/main.ts",
+    "lint": "eslint ."
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",
@@ -22,8 +23,10 @@
     "@repo/env-config": "workspace:*"
   },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/bun": "latest",
+    "eslint": "^9.39.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

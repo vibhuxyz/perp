@@ -34,7 +34,7 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@repo/eslint-config": "workspace:*",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^25.9.1",
@@ -42,13 +42,11 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^10.3.0",
-    "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17.6.0",
+    "eslint-plugin-tailwindcss": "^4.4.0",
     "jsdom": "^30.0.1",
     "shadcn": "^4.21.0",
     "typescript": "~6.0.2",
-    "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",
     "vitest": "^5.0.0"
   }

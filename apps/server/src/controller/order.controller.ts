@@ -1,13 +1,9 @@
-import type { NextFunction, Request, Response } from "express";
+import type { Request, Response } from "express";
 import type { Order } from "engine";
 import { orderSchema } from "../vallidation/order.validate";
 import { exchange, recordFills } from "../exchange";
 
-export const createOrder = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const createOrder = async (req: Request, res: Response) => {
   const result = orderSchema.safeParse(req.body);
 
   if (!result.success) {
@@ -17,7 +13,6 @@ export const createOrder = async (
     });
   }
 
-  //@ts-ignore
   const userId = req.userId;
 
   if (!userId) {

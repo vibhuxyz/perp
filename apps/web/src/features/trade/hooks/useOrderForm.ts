@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
@@ -24,12 +24,20 @@ export const orderSchema = z
 
 export type OrderFormValues = z.infer<typeof orderSchema>;
 
+const DEFAULT_VALUES: OrderFormValues = {
+  side: "LONG",
+  type: "LIMIT",
+  quantity: "",
+  price: "",
+  leverage: "10",
+};
+
 export function useOrderForm(indexPrice: string | null) {
   const queryClient = useQueryClient();
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderSchema),
-    defaultValues: { side: "LONG", type: "LIMIT", quantity: "0.01", price: "67432.1", leverage: "10" },
+    defaultValues: DEFAULT_VALUES,
   });
 
   const mutation = useMutation({
@@ -41,14 +49,17 @@ export function useOrderForm(indexPrice: string | null) {
     },
   });
 
-  const values = form.watch();
-  const previewPrice = values.type === "MARKET" ? indexPrice : values.price;
-  const canPreview =
-    previewPrice && Number(previewPrice) > 0 && Number(values.quantity) > 0 && Number(values.leverage) > 0;
+  const watched = useWatch<OrderFormValues>({ control: form.control });
+  const values: OrderFormValues = { ...DEFAULT_VALUES, ...watched };
+  const { side, type, quantity, price, leverage } = values;
 
-  const margin = canPreview ? initialMargin(previewPrice, values.quantity, values.leverage) : null;
+  const previewPrice = type === "MARKET" ? indexPrice : price;
+  const canPreview =
+    previewPrice && Number(previewPrice) > 0 && Number(quantity) > 0 && Number(leverage) > 0;
+
+  const margin = canPreview ? initialMargin(previewPrice, quantity, leverage) : null;
   const liquidation = canPreview && margin
-    ? liquidationPrice(values.side, previewPrice, margin, values.quantity)
+    ? liquidationPrice(side, previewPrice, margin, quantity)
     : null;
 
   const submitOrder = form.handleSubmit(v =>

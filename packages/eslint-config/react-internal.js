@@ -29,7 +29,13 @@ export const config = [
     plugins: {
       "react-hooks": pluginReactHooks,
     },
-    settings: { react: { version: "detect" } },
+    settings: {
+      // An explicit version (rather than "detect") skips eslint-plugin-react's
+      // auto-detection codepath, which calls context.getFilename() — an API ESLint 10
+      // removed. eslint-plugin-react@7.37.5 (latest as of writing) hasn't shipped a fix,
+      // so "detect" crashes the whole lint run on ESLint 10. Bump this alongside React.
+      react: { version: "19.2.6" },
+    },
     rules: {
       ...pluginReactHooks.configs.recommended.rules,
       // React scope no longer necessary with new JSX transform.

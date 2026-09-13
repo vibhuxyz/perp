@@ -34,15 +34,17 @@ const server = app.listen(ENV.PORT, () => {
   console.log(`server listening on http://localhost:${ENV.PORT}`);
 });
 
-server.on("error", (err: any) => {
-  console.error(`[Server] Error on port ${ENV.PORT}:`, err?.message || err);
+server.on("error", (err: Error) => {
+  console.error(`[Server] Error on port ${ENV.PORT}:`, err.message);
 });
 
 const cleanup = () => {
   try {
     server.close();
     feed?.close();
-  } catch {}
+  } catch {
+    // already closed; nothing to do
+  }
   process.exit(0);
 };
 

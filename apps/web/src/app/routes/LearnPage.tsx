@@ -1,4 +1,5 @@
-import { GraduationCap, BookOpen, TrendingUp, Target, Layers } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { GraduationCap, BookOpen, TrendingUp, Target, Layers, CheckCircle2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
@@ -10,7 +11,6 @@ const LESSONS = [
     duration: "5 min",
     category: "Basics",
     icon: BookOpen,
-    done: false,
   },
   {
     id: 2,
@@ -19,7 +19,6 @@ const LESSONS = [
     duration: "7 min",
     category: "Risk",
     icon: Layers,
-    done: false,
   },
   {
     id: 3,
@@ -28,7 +27,6 @@ const LESSONS = [
     duration: "6 min",
     category: "Risk",
     icon: Target,
-    done: false,
   },
   {
     id: 4,
@@ -37,11 +35,40 @@ const LESSONS = [
     duration: "4 min",
     category: "Basics",
     icon: TrendingUp,
-    done: false,
   },
 ];
 
 export default function LearnPage() {
+  const [completedIds, setCompletedIds] = useState<number[]>(() => {
+    try {
+      const stored = localStorage.getItem('papertrade_learn_completed');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const percent = Math.round((completedIds.length / LESSONS.length) * 100);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('papertrade_learn_completed', JSON.stringify(completedIds));
+      localStorage.setItem('papertrade_learn_progress', String(percent));
+      window.dispatchEvent(new Event('storage'));
+    } catch {
+      // storage quota or private browsing
+    }
+  }, [completedIds, percent]);
+
+  const handleToggleLesson = (id: number) => {
+    setCompletedIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((i) => i !== id);
+      }
+      return [...prev, id];
+    });
+  };
+
   return (
     <div className="p-4 flex flex-col gap-6 max-w-2xl">
       {/* Header */}
@@ -59,21 +86,23 @@ export default function LearnPage() {
       <div className="rounded-xl border border-border-subtle bg-bg-card p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-text-primary">Your progress</span>
-          <span className="text-xs text-text-secondary">0 of {LESSONS.length} complete</span>
+          <span className="text-xs text-text-secondary">
+            {completedIds.length} of {LESSONS.length} complete ({percent}%)
+          </span>
         </div>
         <div className="h-2 rounded-full bg-bg-elevated overflow-hidden">
           <div
-            className="h-full rounded-full bg-brand transition-all"
-            style={{ width: '0%' }}
+            className="h-full rounded-full bg-brand transition-all duration-500"
+            style={{ width: `${percent}%` }}
             role="progressbar"
-            aria-valuenow={0}
+            aria-valuenow={percent}
             aria-valuemin={0}
-            aria-valuemax={LESSONS.length}
+            aria-valuemax={100}
             aria-label="Learning progress"
           />
         </div>
         <p className="mt-2 text-[11px] text-text-secondary/60">
-          Learning progress is separate from your trading PnL.
+          Learning progress tracks your completed simulator lessons.
         </p>
       </div>
 
@@ -81,14 +110,22 @@ export default function LearnPage() {
       <div className="flex flex-col gap-3">
         {LESSONS.map((lesson, idx) => {
           const Icon = lesson.icon;
+          const isDone = completedIds.includes(lesson.id);
+
           return (
             <Card
               key={lesson.id}
-              className="cursor-pointer hover:border-brand/30 transition-colors"
+              className={`cursor-pointer transition-colors ${
+                isDone ? 'border-profit/30 bg-profit/5' : 'hover:border-brand/30'
+              }`}
             >
               <CardContent className="flex items-start gap-4 py-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-bg-elevated">
-                  <Icon className="h-5 w-5 text-brand/70" aria-hidden />
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                    isDone ? 'bg-profit/15 text-profit' : 'bg-bg-elevated text-brand/70'
+                  }`}
+                >
+                  <Icon className="h-5 w-5" aria-hidden />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -96,6 +133,12 @@ export default function LearnPage() {
                       {idx + 1}. {lesson.title}
                     </span>
                     <Badge variant="info">{lesson.category}</Badge>
+                    {isDone && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-profit">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Completed
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-text-secondary leading-relaxed">
                     {lesson.description}
@@ -105,8 +148,16 @@ export default function LearnPage() {
                   </div>
                 </div>
                 <div className="shrink-0">
-                  <button className="rounded-lg bg-brand/15 px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand/25 transition-colors">
-                    Start
+                  <button
+                    type="button"
+                    onClick={() => handleToggleLesson(lesson.id)}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                      isDone
+                        ? 'bg-profit/20 text-profit hover:bg-profit/30'
+                        : 'bg-brand/15 text-brand hover:bg-brand/25'
+                    }`}
+                  >
+                    {isDone ? 'Done ✓' : 'Start'}
                   </button>
                 </div>
               </CardContent>

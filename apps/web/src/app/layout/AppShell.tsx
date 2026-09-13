@@ -25,7 +25,7 @@ export function AppShell() {
   useMarketFeed();
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0A0D14] text-[#F4F7FB]">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0A0D14] text-text-primary">
       {/* Top Header */}
       <TopNav />
 

@@ -17,8 +17,8 @@ export class MarketFeed {
     this.wss = new WebSocketServer({ port });
     this.clients = new Set();
 
-    this.wss.on("error", (err: any) => {
-      console.error(`[MarketFeed] WebSocket server error on port ${port}:`, err?.message || err);
+    this.wss.on("error", (err: Error) => {
+      console.error(`[MarketFeed] WebSocket server error on port ${port}:`, err.message);
     });
 
     this.wss.on("connection", socket => {
@@ -31,7 +31,9 @@ export class MarketFeed {
     for (const client of this.clients) {
       try {
         client.close();
-      } catch {}
+      } catch {
+        // client may already be disconnected; nothing to do
+      }
     }
     this.clients.clear();
     this.wss.close();

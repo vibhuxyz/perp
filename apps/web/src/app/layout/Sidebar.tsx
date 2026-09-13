@@ -10,7 +10,7 @@ import {
 const links = [
   { to: "/",         label: "Trade",     icon: CandlestickChart, load: () => import("@/app/routes/TradePage") },
   { to: "/positions",label: "Positions", icon: Layers,           load: () => import("@/app/routes/PositionsPage") },
-  { to: "/history",  label: "History",   icon: History,          load: () => import("@/app/routes/HistoryPage") },
+  { to: "/history",  label: "Statement / History", icon: History, load: () => import("@/app/routes/HistoryPage") },
   { to: "/learn",    label: "Learn",     icon: GraduationCap,    load: () => Promise.resolve() },
   { to: "/settings", label: "Settings",  icon: Settings,         load: () => import("@/app/routes/SettingsPage") },
 ];

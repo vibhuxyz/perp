@@ -8,7 +8,6 @@ const TradePage       = lazy(() => import("@/app/routes/TradePage"));
 const PositionsPage   = lazy(() => import("@/app/routes/PositionsPage"));
 const HistoryPage     = lazy(() => import("@/app/routes/HistoryPage"));
 const LearnPage       = lazy(() => import("@/app/routes/LearnPage"));
-const DepositPage     = lazy(() => import("@/app/routes/DepositPage"));
 const SettingsPage    = lazy(() => import("@/app/routes/SettingsPage"));
 const PlaceholderView = lazy(() => import("@/app/routes/PlaceholderView"));
 const SignUpPage      = lazy(() => import("@/app/routes/SignUpPage"));
@@ -28,7 +27,6 @@ export default function App() {
             <Route path="positions" element={<PositionsPage />} />
             <Route path="history" element={<HistoryPage />} />
             <Route path="learn" element={<LearnPage />} />
-            <Route path="deposit" element={<DepositPage />} />
             <Route path="settings" element={<SettingsPage />} />
 
             {/* TopNav and Sidebar auxiliary routes */}

@@ -6,9 +6,14 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "lint": "eslint ."
+  },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
     "@types/bun": "latest",
-    "@types/ws": "^8.5.13"
+    "@types/ws": "^8.5.13",
+    "eslint": "^9.39.1"
   },
   "peerDependencies": {
     "typescript": "^5"

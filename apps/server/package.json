@@ -4,11 +4,14 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun --watch src/index.ts"
+    "dev": "bun --watch src/index.ts",
+    "lint": "eslint ."
   },
   "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
     "@types/bun": "latest",
-    "@types/cors": "^2.8.17"
+    "@types/cors": "^2.8.17",
+    "eslint": "^9.39.1"
   },
   "peerDependencies": {
     "typescript": "^5"

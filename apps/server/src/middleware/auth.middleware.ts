@@ -27,9 +27,7 @@ export function authMiddleware(
   try {
     const decoded = jwt.verify(token, secret) as JwtPayload;
     if (decoded.userId) {
-      //@ts-ignore
       req.userId = decoded.userId;
-      //@ts-ignore
       req.user = decoded;
       next();
     } else {
@@ -38,7 +36,7 @@ export function authMiddleware(
         message: "Invalid token payload",
       });
     }
-  } catch (e) {
+  } catch {
     res.status(403).json({
       success: false,
       message: "Invalid or expired token",

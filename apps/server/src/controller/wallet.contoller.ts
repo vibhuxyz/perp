@@ -1,14 +1,13 @@
-import type { NextFunction, Request, Response } from "express";
+import type { Request, Response } from "express";
 import { colletral } from "../vallidation/wallet.validate";
 import { exchange } from "../exchange";
 
-export const createWallet = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  // @ts-ignore
+export const createWallet = async (req: Request, res: Response) => {
   const userId = req.userId;
+
+  if (!userId) {
+    return res.status(401).json({ error: "user not found" });
+  }
 
   const result = colletral.safeParse(req.body);
 

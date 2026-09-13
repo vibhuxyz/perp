@@ -4,11 +4,11 @@ import { NavLink } from 'react-router-dom';
 export default function PlaceholderView({ title, description }: { title: string; description: string }) {
   return (
     <div className="flex flex-col items-center justify-center h-full w-full p-8 text-center bg-[#0A0D14] select-none">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#131824] border border-[#1A2333] mb-4 shadow-lg">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-bg-elevated border border-border-subtle mb-4 shadow-lg">
         <FlaskConical className="h-8 w-8 text-[#7052FF]" />
       </div>
       <h1 className="text-xl font-bold text-white mb-2">{title}</h1>
-      <p className="text-sm text-[#8492A6] max-w-md mb-6 leading-relaxed">
+      <p className="text-sm text-text-secondary max-w-md mb-6 leading-relaxed">
         {description}
       </p>
       <NavLink

@@ -1,9 +1,9 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { ENV } from "@repo/env-config";
 
 export const healthRouter: Router = Router();
 
-const healthCheck = (_req: any, res: any) => {
+const healthCheck = (_req: Request, res: Response) => {
   res.json({
     status: "ok",
     service: "api-gateway",
