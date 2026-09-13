@@ -29,7 +29,7 @@ export function useOrderForm(indexPrice: string | null) {
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderSchema),
-    defaultValues: { side: "LONG", type: "LIMIT", quantity: "1", price: "50000", leverage: "2" },
+    defaultValues: { side: "LONG", type: "LIMIT", quantity: "0.01", price: "67432.1", leverage: "10" },
   });
 
   const mutation = useMutation({
@@ -37,6 +37,7 @@ export function useOrderForm(indexPrice: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["positions"] });
       queryClient.invalidateQueries({ queryKey: ["equity"] });
+      queryClient.invalidateQueries({ queryKey: ["depth"] });
     },
   });
 
@@ -55,9 +56,9 @@ export function useOrderForm(indexPrice: string | null) {
       market: MARKET,
       side: v.side,
       type: v.type,
-      quantity: v.quantity,
-      leverage: v.leverage,
-      ...(v.type === "LIMIT" ? { price: v.price } : {}),
+      quantity: String(Math.max(1, Math.round(parseFloat(v.quantity) || 1))),
+      leverage: String(Math.max(1, Math.round(parseFloat(v.leverage) || 1))),
+      ...(v.type === "LIMIT" ? { price: String(Math.round(parseFloat(v.price || indexPrice || "50000"))) } : {}),
     }),
   );
 

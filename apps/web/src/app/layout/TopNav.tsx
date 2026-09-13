@@ -1,15 +1,28 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Sun, Bell, ChevronDown, PanelLeft } from 'lucide-react';
 import { useAccountStore } from '@/stores/account.store';
 import { useUiStore } from '@/stores/ui.store';
 import { AuthModal } from '@/features/auth/AuthModal';
 
 export function TopNav() {
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isAuthOpen, setIsAuthOpen] = useState(() => searchParams.get('auth') === 'login');
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const { user, token, clearToken } = useAccountStore();
   const { toggleSidebar, sidebarCollapsed } = useUiStore();
   const isAuthenticated = Boolean(token);
+
+  const displayName = user?.username || user?.email?.split('@')[0] || 'Student';
+
+  const handleCloseAuth = () => {
+    setIsAuthOpen(false);
+    if (searchParams.get('auth')) {
+      searchParams.delete('auth');
+      setSearchParams(searchParams, { replace: true });
+    }
+  };
 
   return (
     <>
@@ -48,55 +61,89 @@ export function TopNav() {
           </div>
         </div>
 
-        {/* Right actions: Theme, Notification, User Profile */}
+        {/* Right actions */}
         <div className="flex items-center gap-3">
           <button
             type="button"
-            className="p-1.5 rounded-lg text-[#8492A6] hover:text-white hover:bg-[#131824] transition-colors"
+            className="p-1.5 rounded-lg text-[#8492A6] hover:text-white hover:bg-[#131824] transition-colors cursor-pointer"
             title="Toggle theme"
           >
             <Sun className="h-4 w-4" />
           </button>
-          <button
-            type="button"
-            className="p-1.5 rounded-lg text-[#8492A6] hover:text-white hover:bg-[#131824] transition-colors relative"
-            title="Notifications"
-          >
-            <Bell className="h-4 w-4" />
-            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[#7052FF]" />
-          </button>
 
-          {/* User Account / Login button */}
+          {/* When Logged In: Bell + User Profile Pill */}
           {isAuthenticated && user ? (
-            <button
-              type="button"
-              onClick={clearToken}
-              title="Click to sign out"
-              className="flex items-center gap-2 rounded-xl bg-[#131824] border border-[#1A2333] hover:border-[#2A374F] px-2.5 py-1 text-xs text-white transition-all cursor-pointer"
-            >
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7052FF] text-white text-[11px] font-bold">
-                {(user.username ?? user.email ?? 'S').charAt(0).toUpperCase()}
+            <>
+              <button
+                type="button"
+                className="p-1.5 rounded-lg text-[#8492A6] hover:text-white hover:bg-[#131824] transition-colors relative cursor-pointer"
+                title="Notifications"
+              >
+                <Bell className="h-4 w-4" />
+                <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-[#7052FF]" />
+              </button>
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setProfileDropdownOpen(prev => !prev)}
+                  title="Account menu"
+                  className="flex items-center gap-2 rounded-full bg-[#121723] hover:bg-[#182030] border border-[#1C2537] px-2.5 py-1 text-xs text-white transition-all cursor-pointer"
+                >
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#7052FF] text-white text-xs font-bold shadow-xs">
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="font-semibold text-sm text-white pr-0.5">{displayName}</span>
+                  <ChevronDown className="h-4 w-4 text-[#8492A6]" />
+                </button>
+
+                {/* Profile Dropdown */}
+                {profileDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-48 rounded-xl bg-[#111724] border border-[#1E283C] shadow-2xl p-2 z-50 flex flex-col gap-1">
+                    <div className="px-3 py-2 border-b border-[#1C263A]">
+                      <p className="text-xs font-bold text-white truncate">{displayName}</p>
+                      <p className="text-[11px] text-[#8492A6] truncate mt-0.5">{user.email}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearToken();
+                        setProfileDropdownOpen(false);
+                      }}
+                      className="flex items-center gap-2 px-3 py-2 text-xs text-[#FF4D5A] hover:bg-[#FF4D5A]/10 rounded-lg transition-colors cursor-pointer w-full text-left"
+                    >
+                      <span>Log out</span>
+                    </button>
+                  </div>
+                )}
               </div>
-              <span className="font-semibold text-xs text-white">{user.username ?? 'Student'}</span>
-              <ChevronDown className="h-3 w-3 text-[#8492A6]" />
-            </button>
+            </>
           ) : (
-            <button
-              type="button"
-              onClick={() => setIsAuthOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-[#131824] border border-[#1A2333] hover:border-[#7052FF]/50 px-2.5 py-1 text-xs text-white transition-all cursor-pointer"
-            >
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-[#7052FF] text-white text-[11px] font-bold">
-                S
-              </div>
-              <span className="font-semibold text-xs text-white">Student</span>
-              <ChevronDown className="h-3 w-3 text-[#8492A6]" />
-            </button>
+            /* When Logged Out: Log in and Sign up buttons matching screenshot */
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAuthOpen(true)}
+                className="rounded-xl bg-[#181D29] hover:bg-[#202737] px-4 py-2 text-sm font-semibold text-white transition-colors cursor-pointer"
+              >
+                Log in
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/register')}
+                className="rounded-xl bg-[#7152FF] hover:bg-[#6042EE] px-4 py-2 text-sm font-semibold text-white transition-colors cursor-pointer shadow-md shadow-[#7152FF]/20"
+              >
+                Sign up
+              </button>
+            </div>
           )}
         </div>
       </header>
 
-      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={handleCloseAuth}
+      />
     </>
   );
 }

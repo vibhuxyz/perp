@@ -12,6 +12,8 @@ import { OrderTicket } from '@/features/trade/components/OrderTicket';
 export default function TradePage() {
   const indexPrice = useMarketStore(s => s.indexPrice);
   const setBook = useMarketStore(s => s.setBook);
+  const setIndexPrice = useMarketStore(s => s.setIndexPrice);
+  const setLastTradePrice = useMarketStore(s => s.setLastTradePrice);
 
   // Poll depth until WebSocket broadcasts the book (Day 1 / GOOD rung)
   const { data: depth } = useQuery({
@@ -22,10 +24,18 @@ export default function TradePage() {
   });
 
   useEffect(() => {
-    if (depth && depth.bids && depth.asks) {
-      setBook(depth.bids, depth.asks);
+    if (depth) {
+      if (depth.bids && depth.asks) {
+        setBook(depth.bids, depth.asks);
+      }
+      if (depth.indexPrice) {
+        setIndexPrice(depth.indexPrice);
+      }
+      if (depth.lastTradePrice) {
+        setLastTradePrice(depth.lastTradePrice);
+      }
     }
-  }, [depth, setBook]);
+  }, [depth, setBook, setIndexPrice, setLastTradePrice]);
 
   return (
     <div className="flex flex-col h-full w-full min-h-0 min-w-0 overflow-hidden bg-[#0A0D14]">

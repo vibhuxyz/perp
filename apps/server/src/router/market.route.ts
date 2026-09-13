@@ -1,6 +1,7 @@
 import express from "express";
 import { authMiddleware } from "../middleware/auth.middleware";
-import { exchange, getIndexPrice, MARKET } from "../exchange";
+import { calculatePnL } from "engine";
+import { exchange, getIndexPrice, MARKET, feed } from "../exchange";
 
 const router = express.Router();
 
@@ -51,6 +52,40 @@ router.get("/positions", (req, res, next) => {
   });
 });
 
+router.post("/positions/close", (req, res, next) => {
+  const authHeader = (req.headers.authorization || req.headers.token) as string;
+  if (!authHeader) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  return authMiddleware(req, res, () => {
+    //@ts-ignore
+    const userId = String(req.userId);
+    const { market } = req.body;
+    if (!market) {
+      return res.status(400).json({ error: "Market is required" });
+    }
+
+    const position = exchange.ledger.getPosition(userId, market);
+    if (!position) {
+      return res.status(404).json({ error: "Position not found" });
+    }
+
+    const indexPrice = getIndexPrice();
+    const pnl = calculatePnL(position, indexPrice);
+
+    exchange.ledger.settlePnL(userId, pnl, position.margin);
+    exchange.ledger.closePosition(userId, market);
+
+    feed.broadcast({
+      type: "liquidation",
+      position,
+    });
+
+    return res.json({ success: true });
+  });
+});
+
 router.get("/equity", (req, res, next) => {
   const authHeader = (req.headers.authorization || req.headers.token) as string;
   if (!authHeader) {
@@ -62,13 +97,11 @@ router.get("/equity", (req, res, next) => {
 
   return authMiddleware(req, res, () => {
     //@ts-ignore
-    const collateral = exchange.ledger.usersCollateral.get(String(req.userId));
+    const userId = String(req.userId);
+    let collateral = exchange.ledger.usersCollateral.get(userId);
 
     if (!collateral) {
-      return res.json({
-        availableBalance: "0",
-        marginLocked: "0",
-      });
+      collateral = exchange.deposit(userId, 10_000n);
     }
 
     res.json({

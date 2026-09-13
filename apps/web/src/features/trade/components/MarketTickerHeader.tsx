@@ -1,6 +1,7 @@
-import { useMarketStore } from '@/stores/market.store';
+import { useMarketStore, selectBestBid, selectBestAsk } from '@/stores/market.store';
 import { formatPrice } from '@/shared/lib/formatters';
 import { ChevronDown, Star } from 'lucide-react';
+import Decimal from 'decimal.js';
 
 interface MetricCellProps {
   label: string;
@@ -35,14 +36,49 @@ function MetricCell({ label, value, subValue, tone = 'default' }: MetricCellProp
 export function MarketTickerHeader() {
   const lastTradePrice = useMarketStore(s => s.lastTradePrice);
   const indexPrice = useMarketStore(s => s.indexPrice);
+  const high24h = useMarketStore(s => s.high24h);
+  const low24h = useMarketStore(s => s.low24h);
+  const bestBid = useMarketStore(selectBestBid);
+  const bestAsk = useMarketStore(selectBestAsk);
 
-  // Use live price if available, fallback to the exact 67,432.1 from reference screenshot
-  const displayPrice = lastTradePrice ? formatPrice(lastTradePrice) : '67,432.1';
-  const displayMarkPrice = indexPrice ? formatPrice(indexPrice) : '67,431.9';
+  // Real engine prices
+  const currentPrice = lastTradePrice ?? indexPrice ?? '50000';
+  const displayPrice = formatPrice(currentPrice);
+  const displayMarkPrice = indexPrice ? formatPrice(indexPrice) : '—';
+  const displayIndexPrice = indexPrice ? formatPrice(indexPrice) : '—';
+
+  // Compute price change vs index
+  let priceChangeDisplay = '+0.00%';
+  let isPositiveChange = true;
+  if (lastTradePrice && indexPrice) {
+    try {
+      const diff = new Decimal(lastTradePrice).minus(indexPrice);
+      const pct = diff.div(indexPrice).times(100);
+      priceChangeDisplay = `${pct.gte(0) ? '+' : ''}${pct.toFixed(2)}%`;
+      isPositiveChange = pct.gte(0);
+    } catch {
+      priceChangeDisplay = '+0.00%';
+    }
+  }
+
+  // Funding rate premium (settles every 10s per Day 1 spec)
+  let fundingRateStr = '0.0100%';
+  if (lastTradePrice && indexPrice) {
+    try {
+      const diff = new Decimal(lastTradePrice).minus(indexPrice);
+      const rate = diff.div(indexPrice).times(100);
+      fundingRateStr = `${rate.abs().toFixed(4)}%`;
+    } catch {
+      fundingRateStr = '0.0100%';
+    }
+  }
+
+  const highDisplay = high24h ? formatPrice(high24h) : displayPrice;
+  const lowDisplay = low24h ? formatPrice(low24h) : displayPrice;
 
   return (
     <div className="flex h-14 shrink-0 items-center justify-between border-b border-[#1A2333] bg-[#0E121B] px-4 gap-6 select-none z-10">
-      {/* Left: Asset Pair info & Large Price */}
+      {/* Left: Asset Pair info & Real-time Price */}
       <div className="flex items-center gap-4 min-w-max">
         {/* Bitcoin Icon */}
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F7931A] text-white shadow-md shadow-[#F7931A]/20">
@@ -63,52 +99,63 @@ export function MarketTickerHeader() {
           <span className="text-[11px] text-[#8492A6] font-medium leading-none">Bitcoin Perpetual</span>
         </div>
 
-        {/* Big Live Price */}
+        {/* Live Market Price */}
         <div className="flex items-baseline gap-2.5 ml-2">
           <span className="text-xl font-extrabold font-mono text-[#00F29D] tabular-nums tracking-tight">
-            {displayPrice}
+            ${displayPrice}
           </span>
-          <span className="text-xs font-semibold font-mono text-[#00F29D] tabular-nums">
-            +1,245.3 (+1.88%)
+          <span
+            className={`text-xs font-semibold font-mono tabular-nums ${
+              isPositiveChange ? 'text-[#00F29D]' : 'text-[#FF4D5A]'
+            }`}
+          >
+            {priceChangeDisplay}
           </span>
         </div>
       </div>
 
-      {/* Center: Market Data Metrics */}
+      {/* Center: Real Market Metrics */}
       <div className="flex items-center gap-8 overflow-x-auto scrollbar-none min-w-max">
         <MetricCell
           label="Mark Price"
-          value={displayMarkPrice}
+          value={displayMarkPrice !== '—' ? `$${displayMarkPrice}` : '—'}
         />
 
         <MetricCell
           label="Index Price"
-          value="67,429.8"
+          value={displayIndexPrice !== '—' ? `$${displayIndexPrice}` : '—'}
         />
 
         <MetricCell
-          label="Funding Rate"
-          value="0.0100%"
-          subValue="02:14:36"
-          tone="loss"
+          label="Funding Rate (10s)"
+          value={fundingRateStr}
+          subValue="every 10s"
+          tone="warning"
         />
 
         <MetricCell
           label="24h High"
-          value="68,210.4"
+          value={`$${highDisplay}`}
         />
 
         <MetricCell
           label="24h Low"
-          value="65,102.3"
+          value={`$${lowDisplay}`}
         />
+
+        {bestBid && bestAsk && (
+          <MetricCell
+            label="Spread"
+            value={`$${new Decimal(bestAsk).minus(bestBid).toFixed(2)}`}
+          />
+        )}
       </div>
 
       {/* Right: Favorite star */}
       <div className="flex items-center pl-2">
         <button
           type="button"
-          className="p-1.5 rounded-lg text-[#F5B942] hover:bg-[#131824] transition-colors"
+          className="p-1.5 rounded-lg text-[#F5B942] hover:bg-[#131824] transition-colors cursor-pointer"
           title="Toggle favorite"
         >
           <Star className="h-4 w-4 fill-[#F5B942] stroke-[#F5B942]" />

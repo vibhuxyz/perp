@@ -1,5 +1,21 @@
 
 
+export type Market = string;
+export type Side = "LONG" | "SHORT";
+export type OrderStatus = "resting" | "filled" | "cancelled";
+
+export interface Orders {
+  orderId: number;
+  userId: number;
+  market: Market;
+  side: Side;
+  price: number;
+  quantity: number;
+  filledquantity: number;
+  remainingquantity: number;
+  status: OrderStatus;
+}
+
 // All financial values are integer cents unless noted
 export interface Collateral {
   availableBalance: number;

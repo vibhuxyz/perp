@@ -11,12 +11,18 @@ const LearnPage       = lazy(() => import("@/app/routes/LearnPage"));
 const DepositPage     = lazy(() => import("@/app/routes/DepositPage"));
 const SettingsPage    = lazy(() => import("@/app/routes/SettingsPage"));
 const PlaceholderView = lazy(() => import("@/app/routes/PlaceholderView"));
+const SignUpPage      = lazy(() => import("@/app/routes/SignUpPage"));
 
 export default function App() {
   return (
     <QueryProvider>
       <BrowserRouter>
         <Routes>
+          {/* Standalone Authentication Pages */}
+          <Route path="register" element={<SignUpPage defaultMode="signup" />} />
+          <Route path="signup" element={<SignUpPage defaultMode="signup" />} />
+          <Route path="login" element={<SignUpPage defaultMode="login" />} />
+
           <Route element={<AppShell />}>
             <Route index element={<TradePage />} />
             <Route path="positions" element={<PositionsPage />} />

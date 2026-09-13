@@ -32,8 +32,8 @@ import { useMarketStore } from '@/stores/market.store';
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1D'] as const;
 const RANGES = ['1D', '5D', '1M', '3M', '6M', '1Y', 'All'] as const;
 
-// Generate realistic starting candle data around 67,432
-function generateInitialCandles(count = 90) {
+// Generate realistic starting candle data around the current engine price
+function generateInitialCandles(basePrice = 50000, count = 90) {
   const candles: CandlestickData<UTCTimestamp>[] = [];
   const volumes: HistogramData<UTCTimestamp>[] = [];
   const ma20: LineData<UTCTimestamp>[] = [];
@@ -41,21 +41,21 @@ function generateInitialCandles(count = 90) {
 
   const now = Math.floor(Date.now() / 1000);
   const step = 3600; // 1 hour steps
-  let price = 65800;
+  let price = basePrice - 250;
 
   for (let i = count; i >= 0; i--) {
     const time = (now - i * step) as UTCTimestamp;
-    const change = (Math.random() - 0.48) * 350;
-    const open = Math.round(price);
-    const close = Math.round(price + change);
-    const high = Math.round(Math.max(open, close) + Math.random() * 220);
-    const low = Math.round(Math.min(open, close) - Math.random() * 220);
+    const change = (Math.random() - 0.48) * 180;
+    const open = Math.round(price * 10) / 10;
+    const close = Math.round((price + change) * 10) / 10;
+    const high = Math.round((Math.max(open, close) + Math.random() * 95) * 10) / 10;
+    const low = Math.round((Math.min(open, close) - Math.random() * 95) * 10) / 10;
     price = close;
 
     candles.push({ time, open, high, low, close });
 
     const isUp = close >= open;
-    const volumeVal = Math.floor(250 + Math.random() * 800);
+    const volumeVal = Math.floor(120 + Math.random() * 450);
     volumes.push({
       time,
       value: volumeVal,
@@ -63,13 +63,13 @@ function generateInitialCandles(count = 90) {
     });
   }
 
-  // Force the last candle to match 67,432.1
+  // Set the last candle to match basePrice
   const last = candles[candles.length - 1];
   if (last) {
-    last.open = 67188.1;
-    last.high = 67512.4;
-    last.low = 67102.3;
-    last.close = 67432.1;
+    last.open = Math.round((basePrice - 35) * 10) / 10;
+    last.high = Math.round((basePrice + 55) * 10) / 10;
+    last.low = Math.round((basePrice - 60) * 10) / 10;
+    last.close = basePrice;
   }
 
   // Calculate moving averages
@@ -100,10 +100,22 @@ export function ChartPanel() {
   const [activeTimeframe, setActiveTimeframe] = useState('1h');
   const [activeRange, setActiveRange] = useState('1D');
   const [scaleMode, setScaleMode] = useState<'auto' | 'log' | '%'>('auto');
+  const [utcTime, setUtcTime] = useState(() => new Date().toISOString().substring(11, 19));
 
   const lastTradePrice = useMarketStore(s => s.lastTradePrice);
+  const indexPrice = useMarketStore(s => s.indexPrice);
+  const high24h = useMarketStore(s => s.high24h);
+  const low24h = useMarketStore(s => s.low24h);
 
-  const initialData = useMemo(() => generateInitialCandles(90), []);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setUtcTime(new Date().toISOString().substring(11, 19));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const initialPrice = parseFloat(lastTradePrice ?? indexPrice ?? '50000') || 50000;
+  const initialData = useMemo(() => generateInitialCandles(initialPrice, 90), [initialPrice]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -221,21 +233,32 @@ export function ChartPanel() {
     };
   }, [initialData]);
 
-  // Update real-time candle tick if last trade price updates
+  // Update real-time candle tick if last trade price or index price updates
   useEffect(() => {
-    if (!candleSeriesRef.current || !lastTradePrice) return;
-    const priceNum = parseFloat(lastTradePrice);
+    if (!candleSeriesRef.current) return;
+    const currentPriceStr = lastTradePrice ?? indexPrice;
+    if (!currentPriceStr) return;
+    const priceNum = parseFloat(currentPriceStr);
     if (!isNaN(priceNum) && priceNum > 0) {
       const now = Math.floor(Date.now() / 1000) as UTCTimestamp;
       candleSeriesRef.current.update({
         time: now,
-        open: 67188.1,
-        high: Math.max(67512.4, priceNum),
-        low: Math.min(67102.3, priceNum),
+        open: Math.round((priceNum - 15) * 10) / 10,
+        high: Math.round((Math.max(priceNum + 20, high24h ? parseFloat(high24h) : priceNum)) * 10) / 10,
+        low: Math.round((Math.min(priceNum - 20, low24h ? parseFloat(low24h) : priceNum)) * 10) / 10,
         close: priceNum,
       });
     }
-  }, [lastTradePrice]);
+  }, [lastTradePrice, indexPrice, high24h, low24h]);
+
+  const currentPriceNum = parseFloat(lastTradePrice ?? indexPrice ?? '50000') || 50000;
+  const openNum = Math.round((currentPriceNum - 25) * 10) / 10;
+  const highNum = high24h ? Math.round(parseFloat(high24h) * 10) / 10 : Math.round((currentPriceNum + 45) * 10) / 10;
+  const lowNum = low24h ? Math.round(parseFloat(low24h) * 10) / 10 : Math.round((currentPriceNum - 35) * 10) / 10;
+  const closeNum = currentPriceNum;
+  const diffNum = Math.round((closeNum - openNum) * 10) / 10;
+  const diffPct = ((diffNum / openNum) * 100).toFixed(2);
+  const isUp = diffNum >= 0;
 
   return (
     <div className="flex flex-col bg-[#0E121B] rounded-xl border border-[#1A2333] overflow-hidden select-none">
@@ -310,14 +333,16 @@ export function ChartPanel() {
           <span>BTC-PERP</span>
         </div>
         <div className="flex items-center gap-2">
-          <span>O <span className="text-[#00F29D]">67,188.1</span></span>
-          <span>H <span className="text-[#00F29D]">67,512.4</span></span>
-          <span>L <span className="text-[#00F29D]">67,102.3</span></span>
-          <span>C <span className="text-[#00F29D]">67,432.1</span></span>
-          <span className="text-[#00F29D] font-bold">+244.0 (+0.36%)</span>
+          <span>O <span className={isUp ? "text-[#00F29D]" : "text-[#FF4D5A]"}>{openNum.toFixed(1)}</span></span>
+          <span>H <span className="text-[#00F29D]">{highNum.toFixed(1)}</span></span>
+          <span>L <span className="text-[#FF4D5A]">{lowNum.toFixed(1)}</span></span>
+          <span>C <span className={isUp ? "text-[#00F29D]" : "text-[#FF4D5A]"}>{closeNum.toFixed(1)}</span></span>
+          <span className={isUp ? "text-[#00F29D] font-bold" : "text-[#FF4D5A] font-bold"}>
+            {isUp ? `+${diffNum.toFixed(1)} (+${diffPct}%)` : `${diffNum.toFixed(1)} (${diffPct}%)`}
+          </span>
         </div>
         <div className="ml-auto text-[#8492A6] text-[10px]">
-          Volume <span className="text-[#00F29D]">12.4K</span>
+          Live <span className="text-[#00F29D] font-semibold">{closeNum.toFixed(1)} USD</span>
         </div>
       </div>
 
@@ -377,7 +402,7 @@ export function ChartPanel() {
 
         {/* Center UTC Time */}
         <div className="font-mono text-[10px] text-[#8492A6]">
-          12:45:23 (UTC)
+          {utcTime} (UTC)
         </div>
 
         {/* Right Scale Options */}

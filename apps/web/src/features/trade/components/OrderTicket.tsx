@@ -1,76 +1,168 @@
-import { useState } from 'react';
-import { Controller } from 'react-hook-form';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useOrderForm } from '../hooks/useOrderForm';
 import { useAccountStore } from '@/stores/account.store';
+import { useMarketStore, selectBestBid, selectBestAsk } from '@/stores/market.store';
+import { fetchEquity } from '../api/tradeApi';
 import { AuthModal } from '@/features/auth/AuthModal';
-import { GraduationCap, ChevronRight, RotateCcw } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
+import { RotateCcw, AlertTriangle } from 'lucide-react';
+import Decimal from 'decimal.js';
 
-const PERCENT_PRESETS = [0, 25, 50, 75, 100];
-const LEVERAGE_TICKS = [1, 5, 10, 25, 50, 100];
+const LEVERAGE_STOPS = [1, 5, 10, 25, 50, 100] as const;
+
+const oneDecimalFormatter = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
 
 export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [orderTypeTab, setOrderTypeTab] = useState<'LIMIT' | 'MARKET' | 'STOP'>('LIMIT');
+  const [percent, setPercent] = useState<number>(0);
+  const [leverageStopIndex, setLeverageStopIndex] = useState<number>(2); // 10x default
 
   const token = useAccountStore(s => s.token);
   const isAuthenticated = Boolean(token);
 
+  const lastTradePrice = useMarketStore(s => s.lastTradePrice);
+  const bestBid = useMarketStore(selectBestBid);
+  const bestAsk = useMarketStore(selectBestAsk);
+
+  const { data: equity } = useQuery({
+    queryKey: ['equity', token],
+    queryFn: fetchEquity,
+    enabled: isAuthenticated,
+    retry: false,
+  });
+
   const { form, mutation, values, margin, liquidation, submitOrder } = useOrderForm(indexPrice);
 
+  // Sync initial price if indexPrice arrives and price isn't set yet
+  useEffect(() => {
+    if (indexPrice && (!values.price || values.price === '67432.1' || values.price === '50000')) {
+      form.setValue('price', indexPrice);
+    }
+  }, [indexPrice, form, values.price]);
+
   const isLong = values.side === 'LONG';
-  const displayPrice = values.price || '67432.1';
-  const displaySize = values.quantity || '0.01';
+  const effectivePrice = values.type === 'MARKET'
+    ? (indexPrice ?? '77255.9')
+    : (values.price?.replace(/,/g, '') || indexPrice || '77255.9');
 
-  // Approximate USDT notional
-  const notionalUSDT = (parseFloat(displaySize) * parseFloat(displayPrice) || 674.32).toFixed(2);
-  const requiredMargin = margin ? margin.toFixed(2) : '67.43';
-  const estLiqPrice = liquidation ? liquidation.toFixed(1) : '60,688.9';
-  const estFee = ((parseFloat(notionalUSDT) * 0.0001) || 0.0674).toFixed(4);
+  const currentLeverage = LEVERAGE_STOPS[leverageStopIndex] ?? 10;
+  const displayQuantity = values.quantity || '0';
 
-  const currentLeverage = Number(values.leverage) || 10;
+  // Calculate Order Value (USDT)
+  const orderValueUSDT = useMemo(() => {
+    try {
+      const q = new Decimal(displayQuantity);
+      const p = new Decimal(effectivePrice);
+      if (q.isZero() || p.isZero()) return '0';
+      return q.times(p).toFixed(2);
+    } catch {
+      return '0';
+    }
+  }, [displayQuantity, effectivePrice]);
 
-  const handlePercentClick = (pct: number) => {
-    // Assuming 100000 balance at 10x leverage
-    const maxContracts = (100000 * currentLeverage) / parseFloat(displayPrice);
-    const calculated = ((maxContracts * pct) / 100).toFixed(2);
-    form.setValue('quantity', pct === 0 ? '0.01' : calculated);
+  const requiredMargin = useMemo(() => {
+    if (margin && !margin.isZero()) return margin.toFixed(2);
+    try {
+      const val = new Decimal(orderValueUSDT);
+      if (val.isZero()) return '0.00';
+      return val.div(currentLeverage).toFixed(2);
+    } catch {
+      return '0.00';
+    }
+  }, [margin, orderValueUSDT, currentLeverage]);
+
+  const estLiqPrice = useMemo(() => {
+    if (liquidation) return oneDecimalFormatter.format(liquidation.toNumber());
+    try {
+      const p = new Decimal(effectivePrice);
+      const diff = p.div(currentLeverage);
+      const liq = isLong ? p.minus(diff) : p.plus(diff);
+      return oneDecimalFormatter.format(liq.toNumber());
+    } catch {
+      return '—';
+    }
+  }, [liquidation, effectivePrice, currentLeverage, isLong]);
+
+  const estFee = useMemo(() => {
+    try {
+      const val = new Decimal(orderValueUSDT);
+      if (val.isZero()) return '0.0000';
+      return val.times(0.0001).toFixed(4);
+    } catch {
+      return '0.0000';
+    }
+  }, [orderValueUSDT]);
+
+  const handlePercentChange = (pct: number) => {
+    setPercent(pct);
+    const available = equity?.availableBalance ? parseFloat(equity.availableBalance) : 10000;
+    const priceNum = parseFloat(effectivePrice) || 77255.9;
+    if (priceNum <= 0) return;
+
+    if (pct === 0) {
+      form.setValue('quantity', '0');
+      return;
+    }
+
+    const maxBtc = (available * currentLeverage) / priceNum;
+    const calculated = (maxBtc * (pct / 100)).toFixed(2);
+    form.setValue('quantity', parseFloat(calculated) > 0 ? calculated : '0');
   };
+
+  const handleOrderValueInput = (val: string) => {
+    const cleanVal = val.replace(/,/g, '');
+    const priceNum = parseFloat(effectivePrice) || 77255.9;
+    if (priceNum <= 0) return;
+
+    const numVal = parseFloat(cleanVal);
+    if (isNaN(numVal) || numVal <= 0) {
+      form.setValue('quantity', '0');
+    } else {
+      const calculatedQty = (numVal / priceNum).toFixed(4);
+      form.setValue('quantity', calculatedQty);
+    }
+  };
+
+  const handleMidClick = () => {
+    const mid = lastTradePrice ?? indexPrice ?? '77255.9';
+    form.setValue('price', mid);
+  };
+
+  const handleBboClick = () => {
+    const bbo = isLong ? (bestAsk ?? lastTradePrice ?? indexPrice ?? '77255.9') : (bestBid ?? lastTradePrice ?? indexPrice ?? '77255.9');
+    form.setValue('price', bbo);
+  };
+
+  const handleLeverageChange = (stopIdx: number) => {
+    const clamped = Math.max(0, Math.min(LEVERAGE_STOPS.length - 1, stopIdx));
+    setLeverageStopIndex(clamped);
+    const lev = LEVERAGE_STOPS[clamped] ?? 10;
+    form.setValue('leverage', String(lev));
+  };
+
+  const handleResetLeverage = () => {
+    handleLeverageChange(2); // reset to 10x
+  };
+
+  const leveragePercentagePos = (leverageStopIndex / (LEVERAGE_STOPS.length - 1)) * 100;
 
   return (
     <>
-      <div className="flex flex-col h-full bg-[#0E121B] rounded-xl border border-[#1A2333] overflow-y-auto scrollbar-thin p-3.5 gap-3.5 select-none">
-        {/* Top Educational Card */}
-        <NavLink
-          to="/learn"
-          className="flex items-center justify-between gap-3 rounded-xl border border-[#1A2E4B] bg-[#121B2B] hover:bg-[#152338] p-3 transition-colors cursor-pointer group"
-        >
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#00D2FF]/15 text-[#00D2FF] shrink-0">
-              <GraduationCap className="h-4 w-4" />
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-xs font-bold text-white group-hover:text-[#00D2FF] transition-colors leading-tight">
-                New to trading?
-              </span>
-              <span className="text-[11px] text-[#8492A6] leading-tight mt-0.5 truncate">
-                Learn what a market order is and how leverage works.
-              </span>
-            </div>
-          </div>
-          <ChevronRight className="h-4 w-4 text-[#8492A6] group-hover:text-white shrink-0" />
-        </NavLink>
-
-        {/* Direction Button Group: Long (Green) | Short (Red/Dark) */}
+      <div className="flex flex-col h-full bg-[#0A0E17] rounded-xl border border-[#162032] p-3.5 gap-3.5 select-none overflow-y-auto scrollbar-thin">
+        {/* 1. Long / Short Segmented Buttons */}
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => form.setValue('side', 'LONG')}
             className={[
-              'flex items-center justify-center py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer shadow-xs',
+              'py-2 rounded-lg text-sm font-bold transition-all cursor-pointer shadow-xs',
               isLong
-                ? 'bg-[#00F29D] text-black shadow-md shadow-[#00F29D]/20'
-                : 'bg-[#141A26] border border-[#1E2738] text-[#8492A6] hover:text-white',
+                ? 'bg-[#00DA8E] text-white shadow-md shadow-[#00DA8E]/25'
+                : 'bg-[#111724] border border-[#1C2638] text-[#8492A6] hover:text-white',
             ].join(' ')}
           >
             Long
@@ -79,168 +171,272 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
             type="button"
             onClick={() => form.setValue('side', 'SHORT')}
             className={[
-              'flex items-center justify-center py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer shadow-xs',
+              'py-2 rounded-lg text-sm font-bold transition-all cursor-pointer shadow-xs',
               !isLong
-                ? 'bg-[#FF4D5A] text-white shadow-md shadow-[#FF4D5A]/20'
-                : 'bg-[#141A26] border border-[#1E2738] text-[#8492A6] hover:text-white',
+                ? 'bg-[#FF4D5A] text-white shadow-md shadow-[#FF4D5A]/25'
+                : 'bg-[#111724] border border-[#1C2638] text-[#8492A6] hover:text-white',
             ].join(' ')}
           >
             Short
           </button>
         </div>
 
-        {/* Order Type Tabs: Limit | Market | Stop */}
-        <div className="flex items-center border-b border-[#1A2333] pb-1">
-          {(['LIMIT', 'MARKET', 'STOP'] as const).map(type => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => {
-                setOrderTypeTab(type);
-                if (type === 'LIMIT' || type === 'MARKET') {
-                  form.setValue('type', type);
-                }
-              }}
-              className={[
-                'flex-1 py-1.5 text-xs font-semibold transition-colors relative cursor-pointer',
-                orderTypeTab === type
-                  ? 'text-white'
-                  : 'text-[#8492A6] hover:text-white',
-              ].join(' ')}
-            >
-              <span>{type.charAt(0) + type.slice(1).toLowerCase()}</span>
-              {orderTypeTab === type && (
-                <span className="absolute bottom-[-5px] left-2 right-2 h-0.5 bg-[#00D2FF] rounded-full" />
-              )}
-            </button>
-          ))}
+        {/* 2. Order Type Tabs: Limit | Market | Stop */}
+        <div className="flex items-center bg-[#0D131F] border border-[#182234] rounded-lg p-0.5">
+          {(['LIMIT', 'MARKET', 'STOP'] as const).map(type => {
+            const isSelected = orderTypeTab === type;
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() => {
+                  setOrderTypeTab(type);
+                  if (type === 'LIMIT' || type === 'MARKET') {
+                    form.setValue('type', type);
+                  }
+                }}
+                className={[
+                  'flex-1 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer text-center',
+                  isSelected
+                    ? 'bg-[#1A2539] text-white font-bold shadow-xs border-b-2 border-[#3B82F6]'
+                    : 'text-[#8492A6] hover:text-white',
+                ].join(' ')}
+              >
+                {type.charAt(0) + type.slice(1).toLowerCase()}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Price (USDT) Input */}
+        {/* 3. Price Input with Mid | BBO Links and Green $ Icon Badge */}
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="order-price" className="text-xs font-medium text-[#8492A6]">
-            Price (USDT)
-          </label>
-          <div className="relative flex items-center">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-medium text-[#8492A6]">Price</span>
+            <div className="flex items-center gap-1.5 font-medium text-xs">
+              <button
+                type="button"
+                onClick={handleMidClick}
+                className="text-[#3B82F6] hover:text-[#60A5FA] transition-colors cursor-pointer"
+              >
+                Mid
+              </button>
+              <span className="text-[#2B384E]">|</span>
+              <button
+                type="button"
+                onClick={handleBboClick}
+                className="text-[#3B82F6] hover:text-[#60A5FA] transition-colors cursor-pointer"
+              >
+                BBO
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl bg-[#141924] border border-[#1E2638]/70 px-3.5 py-2.5 focus-within:border-[#3B82F6] transition-colors">
             <input
               id="order-price"
               {...form.register('price')}
               disabled={orderTypeTab === 'MARKET'}
-              placeholder="67432.1"
-              className="w-full rounded-xl border border-[#1A2333] bg-[#111622] px-3 py-2 text-sm text-white font-mono tabular-nums placeholder:text-[#556377] focus:border-[#7052FF] focus:outline-none disabled:opacity-50"
+              placeholder={orderTypeTab === 'MARKET' ? 'Market price' : (indexPrice ?? '77,255.9')}
+              className="w-full bg-transparent text-base font-semibold text-white font-mono tabular-nums placeholder:text-[#556377] focus:outline-none disabled:opacity-50"
             />
-            {orderTypeTab !== 'MARKET' && (
-              <button
-                type="button"
-                onClick={() => form.setValue('price', '67432.1')}
-                className="absolute right-2.5 rounded-lg bg-[#1D273B] hover:bg-[#25324C] px-2 py-0.5 text-xs font-semibold text-[#00D2FF] transition-colors cursor-pointer"
-              >
-                Mid
-              </button>
-            )}
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#10B981] text-white font-bold text-xs shadow-xs ml-2 select-none">
+              $
+            </div>
           </div>
         </div>
 
-        {/* Size (BTC) Input */}
+        {/* 4. Quantity Input with Orange ₿ Icon Badge */}
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="order-size" className="text-xs font-medium text-[#8492A6]">
-            Size (BTC)
-          </label>
-          <div className="relative flex items-center">
+          <span className="text-xs font-medium text-[#8492A6]">Quantity</span>
+          <div className="flex items-center justify-between rounded-xl bg-[#141924] border border-[#1E2638]/70 px-3.5 py-2.5 focus-within:border-[#3B82F6] transition-colors">
             <input
               id="order-size"
               {...form.register('quantity')}
-              placeholder="0.01"
-              className="w-full rounded-xl border border-[#1A2333] bg-[#111622] px-3 py-2 pr-28 text-sm text-white font-mono tabular-nums placeholder:text-[#556377] focus:border-[#7052FF] focus:outline-none"
+              placeholder="0"
+              className="w-full bg-transparent text-base font-semibold text-white font-mono tabular-nums placeholder:text-[#556377] focus:outline-none"
             />
-            <span className="absolute right-3 text-xs font-mono text-[#8492A6] pointer-events-none">
-              ≈ {notionalUSDT} USDT
-            </span>
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#F7931A] text-white font-bold text-xs shadow-xs ml-2 select-none">
+              ₿
+            </div>
           </div>
         </div>
 
-        {/* Percentage Preset Slider / Marks */}
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between px-0.5 text-[10px] font-mono text-[#8492A6]">
-            {PERCENT_PRESETS.map(pct => (
-              <button
-                key={pct}
-                type="button"
-                onClick={() => handlePercentClick(pct)}
-                className="hover:text-white cursor-pointer py-1"
-              >
-                {pct}%
-              </button>
-            ))}
+        {/* 5. Percentage Slider with Ring Ticks and 0 to 100% Labels */}
+        <div className="flex flex-col gap-1 py-1">
+          <div className="relative flex items-center py-2 cursor-pointer">
+            {/* Background track line */}
+            <div className="w-full h-[3px] bg-[#222B3D] rounded-full relative">
+              {/* Blue progress fill */}
+              <div
+                className="h-full bg-[#3B82F6] rounded-full"
+                style={{ width: `${percent}%` }}
+              />
+
+              {/* 5 Tick Circles */}
+              {[0, 25, 50, 75, 100].map(tick => {
+                const isPassed = percent >= tick;
+                return (
+                  <div
+                    key={`tick-${tick}`}
+                    style={{ left: `${tick}%` }}
+                    className={[
+                      'absolute w-2.5 h-2.5 rounded-full -top-[3.5px] -translate-x-1/2 pointer-events-none transition-colors',
+                      isPassed
+                        ? 'border-2 border-[#3B82F6] bg-[#0A0E17]'
+                        : 'border-2 border-[#2E3B52] bg-[#0A0E17]',
+                    ].join(' ')}
+                  />
+                );
+              })}
+
+              {/* Knob */}
+              <div
+                style={{ left: `${percent}%` }}
+                className="absolute w-4 h-4 rounded-full bg-[#3B82F6] shadow-sm shadow-[#3B82F6]/60 top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none"
+              />
+            </div>
+
+            {/* Native Range Input for drag interaction */}
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={percent}
+              onChange={e => handlePercentChange(Number(e.target.value))}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
           </div>
-          <div className="h-1 w-full rounded-full bg-[#1A2333] relative">
-            <div className="h-full bg-[#00D2FF] rounded-full" style={{ width: '25%' }} />
+
+          {/* Labels: 0 on left, 100% on right */}
+          <div className="flex justify-between text-xs font-mono text-[#8492A6] px-0.5">
+            <span>0</span>
+            <span>100%</span>
           </div>
         </div>
 
-        {/* Leverage Slider Section */}
-        <div className="flex flex-col gap-2 pt-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-[#8492A6]">Leverage</span>
+        {/* 6. Order Value Input with Green $ Icon Badge */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-[#8492A6]">Order Value</span>
+          <div className="flex items-center justify-between rounded-xl bg-[#141924] border border-[#1E2638]/70 px-3.5 py-2.5 focus-within:border-[#3B82F6] transition-colors">
+            <input
+              id="order-value"
+              value={orderValueUSDT === '0' ? '0' : orderValueUSDT}
+              onChange={e => handleOrderValueInput(e.target.value)}
+              placeholder="0"
+              className="w-full bg-transparent text-base font-semibold text-white font-mono tabular-nums placeholder:text-[#556377] focus:outline-none"
+            />
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#10B981] text-white font-bold text-xs shadow-xs ml-2 select-none">
+              $
+            </div>
+          </div>
+        </div>
+
+        {/* 7. Leverage Slider Section */}
+        <div className="flex flex-col gap-1 pt-0.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-medium text-[#8492A6]">Leverage</span>
             <button
               type="button"
-              className="flex items-center gap-1 text-xs font-bold font-mono text-[#00D2FF] hover:underline cursor-pointer"
+              onClick={handleResetLeverage}
+              className="flex items-center gap-1 font-mono font-bold text-white hover:text-[#00D2FF] transition-colors cursor-pointer"
+              title="Reset leverage to 10x"
             >
               <span>{currentLeverage}x</span>
-              <RotateCcw className="h-3 w-3" />
+              <RotateCcw className="h-3 w-3 text-[#8492A6]" />
             </button>
           </div>
 
-          <Controller
-            control={form.control}
-            name="leverage"
-            render={({ field }) => (
-              <div className="flex flex-col gap-1.5">
-                <input
-                  type="range"
-                  min="1"
-                  max="100"
-                  value={field.value}
-                  onChange={e => field.onChange(e.target.value)}
-                  className="w-full h-1.5 bg-[#1A2333] rounded-lg appearance-none cursor-pointer accent-[#00D2FF]"
-                />
-                <div className="flex items-center justify-between text-[10px] font-mono text-[#8492A6] px-0.5">
-                  {LEVERAGE_TICKS.map(tick => (
-                    <button
-                      key={tick}
-                      type="button"
-                      onClick={() => field.onChange(String(tick))}
-                      className={[
-                        'cursor-pointer hover:text-white',
-                        currentLeverage === tick ? 'text-[#00D2FF] font-bold' : '',
-                      ].join(' ')}
-                    >
-                      {tick}x
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          />
+          <div className="relative flex items-center py-1.5 cursor-pointer">
+            {/* Background Line */}
+            <div className="w-full h-[3px] bg-[#222B3D] rounded-full relative">
+              {/* Fill Line */}
+              <div
+                className="h-full bg-[#3B82F6] rounded-full"
+                style={{ width: `${leveragePercentagePos}%` }}
+              />
+
+              {/* Tick Dots */}
+              {LEVERAGE_STOPS.map((stop, i) => {
+                const pos = (i / (LEVERAGE_STOPS.length - 1)) * 100;
+                return (
+                  <div
+                    key={`lev-dot-${stop}`}
+                    style={{ left: `${pos}%` }}
+                    className="absolute w-2 h-2 rounded-full border border-[#2E3B52] bg-[#0A0E17] -top-[2.5px] -translate-x-1/2 pointer-events-none"
+                  />
+                );
+              })}
+
+              {/* Slider Knob */}
+              <div
+                style={{ left: `${leveragePercentagePos}%` }}
+                className="absolute w-3.5 h-3.5 rounded-full bg-[#3B82F6] shadow-sm shadow-[#3B82F6]/60 top-1/2 -translate-y-1/2 -translate-x-1/2 pointer-events-none"
+              />
+            </div>
+
+            {/* Hidden Input for dragging */}
+            <input
+              type="range"
+              min="0"
+              max={LEVERAGE_STOPS.length - 1}
+              step="1"
+              value={leverageStopIndex}
+              onChange={e => handleLeverageChange(Number(e.target.value))}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+          </div>
+
+          {/* Tick Labels */}
+          <div className="flex justify-between text-[10px] font-mono text-[#6A7B95] px-0.5">
+            {LEVERAGE_STOPS.map((stop, i) => (
+              <button
+                key={stop}
+                type="button"
+                onClick={() => handleLeverageChange(i)}
+                className={[
+                  'cursor-pointer transition-colors hover:text-white',
+                  leverageStopIndex === i ? 'text-white font-bold' : '',
+                ].join(' ')}
+              >
+                {stop}x
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Order Preview Breakdown */}
-        <div className="flex flex-col gap-2 rounded-xl bg-[#111622] p-3 text-xs font-mono border border-[#1A2333]/50 mt-1">
+        {/* 8. Summary Breakdown: Flat List matching Screenshot */}
+        <div className="flex flex-col gap-2 pt-1 text-xs font-mono">
           <div className="flex items-center justify-between">
             <span className="text-[#8492A6] font-sans">Required Margin</span>
-            <span className="text-white font-bold tabular-nums">{requiredMargin} USDT</span>
+            <span className="text-white font-medium tabular-nums">{requiredMargin} USDT</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[#8492A6] font-sans">Est. Liquidation Price</span>
-            <span className="text-white font-bold tabular-nums">{estLiqPrice}</span>
+            <span className="text-white font-medium tabular-nums">{estLiqPrice}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[#8492A6] font-sans">Est. Fee</span>
-            <span className="text-white font-bold tabular-nums">{estFee} USDT</span>
+            <span className="text-white font-medium tabular-nums">{estFee} USDT</span>
           </div>
         </div>
 
-        {/* Big Action Button */}
+        {/* Server Rejection Alert */}
+        {mutation.error && (
+          <div className="flex items-start gap-2 rounded-lg border border-[#FF4D5A]/30 bg-[#FF4D5A]/10 p-2.5 text-xs text-[#FF4D5A]">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>Order rejected: {mutation.error.message}</span>
+          </div>
+        )}
+
+        {/* Server Success Alert */}
+        {mutation.data && (
+          <div className="rounded-lg border border-[#00DA8E]/30 bg-[#00DA8E]/10 p-2.5 text-xs text-[#00DA8E]">
+            Order {mutation.data.status} · Filled {mutation.data.filledQuantity} BTC
+          </div>
+        )}
+
+        {/* 9. Big Action Button at Bottom */}
         <div className="mt-auto pt-2">
           <button
             type="button"
@@ -253,23 +449,29 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
               }
             }}
             className={[
-              'w-full rounded-xl py-3 px-4 flex flex-col items-center justify-center transition-all cursor-pointer font-sans shadow-lg',
-              isLong
-                ? 'bg-[#00F29D] hover:bg-[#00DC8E] text-black shadow-[#00F29D]/20'
-                : 'bg-[#FF4D5A] hover:bg-[#EE404D] text-white shadow-[#FF4D5A]/20',
+              'w-full rounded-xl py-2.5 px-4 flex flex-col items-center justify-center transition-all cursor-pointer font-sans shadow-lg',
+              !isAuthenticated
+                ? 'bg-[#7152FF] hover:bg-[#6042EE] text-white shadow-[#7152FF]/25'
+                : isLong
+                ? 'bg-[#00DA8E] hover:bg-[#00C57F] text-black shadow-md shadow-[#00DA8E]/20'
+                : 'bg-[#FF4D5A] hover:bg-[#EE404D] text-white shadow-md shadow-[#FF4D5A]/20',
               mutation.isPending ? 'opacity-70 pointer-events-none' : '',
             ].join(' ')}
           >
-            <span className="text-sm font-extrabold leading-tight">
+            <span className="text-sm font-bold leading-tight">
               {mutation.isPending
                 ? 'Submitting…'
+                : !isAuthenticated
+                ? 'Log in to trade'
                 : isLong
                 ? 'Open Long (Demo)'
                 : 'Open Short (Demo)'}
             </span>
-            <span className="text-[11px] font-semibold opacity-85 font-mono leading-tight mt-0.5">
-              ≈ {displaySize} BTC
-            </span>
+            {isAuthenticated && (
+              <span className="text-xs font-medium opacity-80 font-mono leading-tight mt-0.5">
+                ≈ {displayQuantity} BTC
+              </span>
+            )}
           </button>
         </div>
       </div>

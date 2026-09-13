@@ -26,15 +26,19 @@ export const createOrder = async (
 
   const { market, side, type, quantity, price, leverage } = result.data;
 
+  const parsedQuantity = BigInt(Math.max(1, Math.round(parseFloat(quantity))));
+  const parsedPrice = price ? BigInt(Math.round(parseFloat(price))) : 0n;
+  const parsedLeverage = leverage ? BigInt(Math.max(1, Math.round(parseFloat(leverage)))) : 1n;
+
   const order: Order = {
     userId: String(userId),
     orderId: crypto.randomUUID(),
     market,
     side,
     type,
-    quantity: BigInt(quantity),
-    price: BigInt(price ?? "0"),
-    leverage: BigInt(leverage ?? "1"),
+    quantity: parsedQuantity,
+    price: parsedPrice,
+    leverage: parsedLeverage,
     status: "resting",
     createdAt: new Date(),
   };

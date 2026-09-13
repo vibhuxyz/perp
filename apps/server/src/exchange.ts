@@ -31,8 +31,51 @@ export function recordFills(newFills: Fill[]): void {
   }
 }
 
+function seedInitialLiquidity(): void {
+  exchange.deposit("liquidity-provider", 10_000_000n);
+
+  const basePrice = 50_000n;
+  const levels = [
+    { offset: 50n, qty: 2n },
+    { offset: 100n, qty: 5n },
+    { offset: 150n, qty: 8n },
+    { offset: 200n, qty: 12n },
+    { offset: 250n, qty: 15n },
+    { offset: 300n, qty: 20n },
+  ];
+
+  for (const lvl of levels) {
+    exchange.placeOrder({
+      userId: "liquidity-provider",
+      orderId: `seed-bid-${lvl.offset}`,
+      market: MARKET,
+      side: "LONG",
+      type: "LIMIT",
+      price: basePrice - lvl.offset,
+      quantity: lvl.qty,
+      leverage: 1n,
+      status: "resting",
+      createdAt: new Date(),
+    });
+
+    exchange.placeOrder({
+      userId: "liquidity-provider",
+      orderId: `seed-ask-${lvl.offset}`,
+      market: MARKET,
+      side: "SHORT",
+      type: "LIMIT",
+      price: basePrice + lvl.offset,
+      quantity: lvl.qty,
+      leverage: 1n,
+      status: "resting",
+      createdAt: new Date(),
+    });
+  }
+}
+
 export function start(): void {
   exchange.createMarket(MARKET);
+  seedInitialLiquidity();
 
   startPoller({ startPrice: indexPrice }, price => {
     indexPrice = price;

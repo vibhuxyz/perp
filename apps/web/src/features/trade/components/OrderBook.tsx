@@ -1,33 +1,8 @@
 import { useState, useMemo } from 'react';
-import { useMarketStore, type Level } from '@/stores/market.store';
-import { formatPrice } from '@/shared/lib/formatters';
+import { useMarketStore } from '@/stores/market.store';
+import { formatPrice, formatSize } from '@/shared/lib/formatters';
 import { Minus, Plus, Lock } from 'lucide-react';
-
-const DEFAULT_ASKS: { price: string; quantity: string; total: string }[] = [
-  { price: '77,257.6', quantity: '0.02229', total: '4.67453' },
-  { price: '77,257.5', quantity: '1.30702', total: '4.65224' },
-  { price: '77,257.4', quantity: '0.00171', total: '3.34522' },
-  { price: '77,256.4', quantity: '0.22098', total: '3.34351' },
-  { price: '77,256.3', quantity: '0.00285', total: '3.12253' },
-  { price: '77,255.8', quantity: '0.00084', total: '3.11968' },
-  { price: '77,255.2', quantity: '0.04011', total: '3.11884' },
-  { price: '77,253.6', quantity: '0.12939', total: '3.07873' },
-  { price: '77,253.5', quantity: '0.64722', total: '2.94934' },
-  { price: '77,253.4', quantity: '2.30212', total: '2.30212' },
-];
-
-const DEFAULT_BIDS: { price: string; quantity: string; total: string }[] = [
-  { price: '77,253.3', quantity: '2.18087', total: '2.18087' },
-  { price: '77,253.2', quantity: '0.71192', total: '2.89279' },
-  { price: '77,253.0', quantity: '0.00970', total: '2.90249' },
-  { price: '77,252.9', quantity: '0.00970', total: '2.91219' },
-  { price: '77,252.8', quantity: '0.00970', total: '2.92189' },
-  { price: '77,252.7', quantity: '0.00970', total: '2.93159' },
-  { price: '77,252.6', quantity: '0.00003', total: '2.93162' },
-  { price: '77,252.3', quantity: '0.05373', total: '2.98535' },
-  { price: '77,252.1', quantity: '0.00560', total: '2.99095' },
-  { price: '77,251.8', quantity: '0.01294', total: '3.00389' },
-];
+import Decimal from 'decimal.js';
 
 const PRECISION_STEPS = ['0.01', '0.1', '1', '5', '10'];
 
@@ -42,6 +17,7 @@ export function OrderBook() {
   const storeAsks = useMarketStore(s => s.asks);
   const lastTradePrice = useMarketStore(s => s.lastTradePrice);
   const indexPrice = useMarketStore(s => s.indexPrice);
+  const realTrades = useMarketStore(s => s.trades);
 
   const precision = PRECISION_STEPS[precisionIndex] ?? '0.1';
 
@@ -53,71 +29,79 @@ export function OrderBook() {
     setPrecisionIndex(prev => Math.min(PRECISION_STEPS.length - 1, prev + 1));
   };
 
-  // If real engine store has book data, map it; otherwise use the exact reference numbers
+  // Real depth data calculation from actual engine levels
   const asksData = useMemo(() => {
-    if (storeAsks.length > 0) {
-      let running = 0;
-      const totals: number[] = [];
-      const slice = storeAsks.slice(0, viewMode === 'asks' ? 20 : 10);
-      for (const a of slice) {
-        running += parseFloat(a.quantity) || 0;
-        totals.push(running);
-      }
-      const maxTot = running || 1;
-      return slice.map((a: Level, i: number) => {
-        const tot = totals[i] ?? 0;
-        return {
-          price: formatPrice(a.price),
-          size: (parseFloat(a.quantity) || 0).toFixed(5),
-          total: tot.toFixed(5),
-          depthPercent: Math.min(100, Math.round((tot / maxTot) * 100)),
-        };
-      });
+    if (storeAsks.length === 0) return [];
+
+    let running = new Decimal(0);
+    const totals: Decimal[] = [];
+    const slice = storeAsks.slice(0, viewMode === 'asks' ? 20 : 10);
+
+    for (const a of slice) {
+      running = running.plus(a.quantity);
+      totals.push(running);
     }
 
-    const maxTot = 4.67453;
-    const list = viewMode === 'asks' ? [...DEFAULT_ASKS, ...DEFAULT_ASKS] : DEFAULT_ASKS;
-    return list.map(item => ({
-      price: item.price,
-      size: item.quantity,
-      total: item.total,
-      depthPercent: Math.min(100, Math.round((parseFloat(item.total) / maxTot) * 100)),
-    }));
+    const maxTot = running.gt(0) ? running : new Decimal(1);
+
+    return slice.map((a, i) => {
+      const tot = totals[i] ?? new Decimal(0);
+      return {
+        price: formatPrice(a.price),
+        size: formatSize(a.quantity),
+        total: formatSize(tot.toString()),
+        depthPercent: Math.min(100, Math.round(tot.div(maxTot).times(100).toNumber())),
+      };
+    });
   }, [storeAsks, viewMode]);
 
   const bidsData = useMemo(() => {
-    if (storeBids.length > 0) {
-      let running = 0;
-      const totals: number[] = [];
-      const slice = storeBids.slice(0, viewMode === 'bids' ? 20 : 10);
-      for (const b of slice) {
-        running += parseFloat(b.quantity) || 0;
-        totals.push(running);
-      }
-      const maxTot = running || 1;
-      return slice.map((b: Level, i: number) => {
-        const tot = totals[i] ?? 0;
-        return {
-          price: formatPrice(b.price),
-          size: (parseFloat(b.quantity) || 0).toFixed(5),
-          total: tot.toFixed(5),
-          depthPercent: Math.min(100, Math.round((tot / maxTot) * 100)),
-        };
-      });
+    if (storeBids.length === 0) return [];
+
+    let running = new Decimal(0);
+    const totals: Decimal[] = [];
+    const slice = storeBids.slice(0, viewMode === 'bids' ? 20 : 10);
+
+    for (const b of slice) {
+      running = running.plus(b.quantity);
+      totals.push(running);
     }
 
-    const maxTot = 3.00389;
-    const list = viewMode === 'bids' ? [...DEFAULT_BIDS, ...DEFAULT_BIDS] : DEFAULT_BIDS;
-    return list.map(item => ({
-      price: item.price,
-      size: item.quantity,
-      total: item.total,
-      depthPercent: Math.min(100, Math.round((parseFloat(item.total) / maxTot) * 100)),
-    }));
+    const maxTot = running.gt(0) ? running : new Decimal(1);
+
+    return slice.map((b, i) => {
+      const tot = totals[i] ?? new Decimal(0);
+      return {
+        price: formatPrice(b.price),
+        size: formatSize(b.quantity),
+        total: formatSize(tot.toString()),
+        depthPercent: Math.min(100, Math.round(tot.div(maxTot).times(100).toNumber())),
+      };
+    });
   }, [storeBids, viewMode]);
 
-  const midPrice = lastTradePrice ? formatPrice(lastTradePrice) : '77,255.9';
-  const markPriceDisplay = indexPrice ? formatPrice(indexPrice) : '77,253.4';
+  // Real depth balance ratio calculation
+  const { bidPercent, askPercent } = useMemo(() => {
+    const totalBids = storeBids.reduce((sum, b) => sum.plus(b.quantity), new Decimal(0));
+    const totalAsks = storeAsks.reduce((sum, a) => sum.plus(a.quantity), new Decimal(0));
+    const totalLiquidity = totalBids.plus(totalAsks);
+
+    if (totalLiquidity.isZero()) {
+      return { bidPercent: 50, askPercent: 50 };
+    }
+
+    const bPct = Math.round(totalBids.div(totalLiquidity).times(100).toNumber());
+    const aPct = 100 - bPct;
+    return { bidPercent: bPct, askPercent: aPct };
+  }, [storeBids, storeAsks]);
+
+  const midPrice = lastTradePrice
+    ? formatPrice(lastTradePrice)
+    : indexPrice
+    ? formatPrice(indexPrice)
+    : '—';
+
+  const markPriceDisplay = indexPrice ? formatPrice(indexPrice) : '—';
 
   return (
     <div className="flex flex-col h-full bg-[#0E121B] rounded-xl border border-[#1A2333] overflow-hidden select-none">
@@ -145,7 +129,7 @@ export function OrderBook() {
               : 'text-[#8492A6] hover:text-white',
           ].join(' ')}
         >
-          Trades
+          Trades ({realTrades.length})
         </button>
       </div>
 
@@ -155,7 +139,6 @@ export function OrderBook() {
           <div className="flex h-9 shrink-0 items-center justify-between px-3 bg-[#0C1018] border-b border-[#1A2333]/70">
             {/* View Mode Buttons */}
             <div className="flex items-center gap-2">
-              {/* Both asks and bids view */}
               <button
                 type="button"
                 onClick={() => setViewMode('all')}
@@ -170,7 +153,6 @@ export function OrderBook() {
                 </svg>
               </button>
 
-              {/* Bids only view */}
               <button
                 type="button"
                 onClick={() => setViewMode('bids')}
@@ -185,7 +167,6 @@ export function OrderBook() {
                 </svg>
               </button>
 
-              {/* Asks only view */}
               <button
                 type="button"
                 onClick={() => setViewMode('asks')}
@@ -200,7 +181,6 @@ export function OrderBook() {
                 </svg>
               </button>
 
-              {/* Lock button */}
               <button
                 type="button"
                 className="p-1 rounded text-[#8492A6] hover:text-white transition-colors"
@@ -242,85 +222,93 @@ export function OrderBook() {
           {/* 4. Asks (Red) Section */}
           {(viewMode === 'all' || viewMode === 'asks') && (
             <div className="flex flex-col flex-1 min-h-0 overflow-y-auto scrollbar-none py-0.5">
-              {asksData.map((ask, i) => (
-                <div
-                  key={`ask-${ask.price}-${i}`}
-                  className="relative grid grid-cols-3 px-3 py-[2.5px] text-xs font-mono tabular-nums hover:bg-[#151D2C] cursor-pointer group"
-                >
-                  {/* Red depth bar extending from right edge */}
+              {asksData.length > 0 ? (
+                asksData.map((ask, i) => (
                   <div
-                    className="absolute top-0 bottom-0 right-0 bg-[#FF4D5A]/20 pointer-events-none transition-all"
-                    style={{ width: `${ask.depthPercent}%` }}
-                  />
-                  <span className="text-left text-[#FF4D5A] font-medium z-10">{ask.price}</span>
-                  <span className="text-right text-white/90 z-10">{ask.size}</span>
-                  <span className="text-right text-white/90 z-10">{ask.total}</span>
+                    key={`ask-${ask.price}-${i}`}
+                    className="relative grid grid-cols-3 px-3 py-[2.5px] text-xs font-mono tabular-nums hover:bg-[#151D2C] cursor-pointer group"
+                  >
+                    <div
+                      className="absolute top-0 bottom-0 right-0 bg-[#FF4D5A]/20 pointer-events-none transition-all"
+                      style={{ width: `${ask.depthPercent}%` }}
+                    />
+                    <span className="text-left text-[#FF4D5A] font-medium z-10">${ask.price}</span>
+                    <span className="text-right text-white/90 z-10">{ask.size}</span>
+                    <span className="text-right text-white/90 z-10">{ask.total}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="flex-1 flex items-center justify-center p-3 text-center text-[11px] text-[#8492A6]">
+                  No resting asks in book
                 </div>
-              ))}
+              )}
             </div>
           )}
 
           {/* 5. Center Mid-Price & Mark Price Banner */}
           <div className="flex h-10 shrink-0 items-center justify-between px-3 border-y border-[#1A2333] bg-[#0E121B] font-mono">
             <span className="text-base font-extrabold text-[#00F29D] tabular-nums tracking-tight">
-              {midPrice}
+              {midPrice !== '—' ? `$${midPrice}` : '—'}
             </span>
             <span className="text-xs text-[#8492A6] tabular-nums font-medium">
-              {markPriceDisplay}
+              {markPriceDisplay !== '—' ? `Mark: $${markPriceDisplay}` : '—'}
             </span>
           </div>
 
           {/* 6. Bids (Green) Section */}
           {(viewMode === 'all' || viewMode === 'bids') && (
             <div className="flex flex-col flex-1 min-h-0 overflow-y-auto scrollbar-none py-0.5">
-              {bidsData.map((bid, i) => (
-                <div
-                  key={`bid-${bid.price}-${i}`}
-                  className="relative grid grid-cols-3 px-3 py-[2.5px] text-xs font-mono tabular-nums hover:bg-[#151D2C] cursor-pointer group"
-                >
-                  {/* Green depth bar extending from right edge */}
+              {bidsData.length > 0 ? (
+                bidsData.map((bid, i) => (
                   <div
-                    className="absolute top-0 bottom-0 right-0 bg-[#00F29D]/20 pointer-events-none transition-all"
-                    style={{ width: `${bid.depthPercent}%` }}
-                  />
-                  <span className="text-left text-[#00F29D] font-medium z-10">{bid.price}</span>
-                  <span className="text-right text-white/90 z-10">{bid.size}</span>
-                  <span className="text-right text-white/90 z-10">{bid.total}</span>
+                    key={`bid-${bid.price}-${i}`}
+                    className="relative grid grid-cols-3 px-3 py-[2.5px] text-xs font-mono tabular-nums hover:bg-[#151D2C] cursor-pointer group"
+                  >
+                    <div
+                      className="absolute top-0 bottom-0 right-0 bg-[#00F29D]/20 pointer-events-none transition-all"
+                      style={{ width: `${bid.depthPercent}%` }}
+                    />
+                    <span className="text-left text-[#00F29D] font-medium z-10">${bid.price}</span>
+                    <span className="text-right text-white/90 z-10">{bid.size}</span>
+                    <span className="text-right text-white/90 z-10">{bid.total}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="flex-1 flex items-center justify-center p-3 text-center text-[11px] text-[#8492A6]">
+                  No resting bids in book
                 </div>
-              ))}
+              )}
             </div>
           )}
 
-          {/* 7. Bottom Depth Ratio Bar with Diagonal Separator */}
+          {/* 7. Bottom Depth Ratio Bar with Real Liquidity Ratio */}
           <div className="p-2 shrink-0 border-t border-[#1A2333] bg-[#0C1018]">
             <div className="flex h-6 w-full rounded-md overflow-hidden bg-[#0A0D14] text-xs font-bold font-mono">
-              {/* Green 36% Block */}
               <div
                 style={{
-                  width: '36%',
+                  width: `${bidPercent}%`,
                   clipPath: 'polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)',
                 }}
-                className="bg-[#00F29D]/20 text-[#00F29D] flex items-center px-2.5"
+                className="bg-[#00F29D]/20 text-[#00F29D] flex items-center px-2.5 transition-all"
               >
-                36%
+                {bidPercent}%
               </div>
 
-              {/* Red 64% Block with matching diagonal angle */}
               <div
                 style={{
-                  width: '66%',
+                  width: `${askPercent + 2}%`,
                   marginLeft: '-8px',
                   clipPath: 'polygon(10px 0, 100% 0, 100% 100%, 0 100%)',
                 }}
-                className="bg-[#FF4D5A]/20 text-[#FF4D5A] flex items-center justify-end px-2.5"
+                className="bg-[#FF4D5A]/20 text-[#FF4D5A] flex items-center justify-end px-2.5 transition-all"
               >
-                64%
+                {askPercent}%
               </div>
             </div>
           </div>
         </div>
       ) : (
-        /* Recent Trades view */
+        /* Real Recent Trades View from WebSocket Fills */
         <div className="flex flex-col flex-1 p-3 text-xs text-[#8492A6] font-mono">
           <div className="grid grid-cols-3 pb-2 text-[11px] font-medium border-b border-[#1A2333]/50">
             <span>Price (USD)</span>
@@ -328,19 +316,21 @@ export function OrderBook() {
             <span className="text-right">Time</span>
           </div>
           <div className="flex flex-col gap-1 pt-2 overflow-y-auto scrollbar-thin">
-            {[
-              { price: '77,255.9', size: '0.12400', time: '12:45:22', isUp: true },
-              { price: '77,255.2', size: '0.04500', time: '12:45:21', isUp: false },
-              { price: '77,255.9', size: '0.85000', time: '12:45:18', isUp: true },
-              { price: '77,253.4', size: '0.32000', time: '12:45:15', isUp: false },
-              { price: '77,255.9', size: '0.50000', time: '12:45:11', isUp: true },
-            ].map((t, idx) => (
-              <div key={idx} className="grid grid-cols-3 py-1">
-                <span className={t.isUp ? 'text-[#00F29D]' : 'text-[#FF4D5A]'}>{t.price}</span>
-                <span className="text-right text-white">{t.size}</span>
-                <span className="text-right text-[#8492A6] text-[11px]">{t.time}</span>
+            {realTrades.length > 0 ? (
+              realTrades.map((t, idx) => (
+                <div key={`${t.id}-${idx}`} className="grid grid-cols-3 py-1">
+                  <span className={t.isUp ? 'text-[#00F29D]' : 'text-[#FF4D5A]'}>
+                    ${formatPrice(t.price)}
+                  </span>
+                  <span className="text-right text-white">{formatSize(t.size)}</span>
+                  <span className="text-right text-[#8492A6] text-[11px]">{t.time}</span>
+                </div>
+              ))
+            ) : (
+              <div className="py-12 text-center text-[11px] text-[#8492A6]">
+                No trades recorded yet this session.
               </div>
-            ))}
+            )}
           </div>
         </div>
       )}
