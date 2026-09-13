@@ -42,24 +42,31 @@ export default function TradePage() {
       {/* 1. Market Ticker Header Bar */}
       <MarketTickerHeader />
 
-      {/* 2. Main 3-Column Trading Workspace */}
+      {/* 2. Main Trading Workspace */}
       <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
-        {/* Column 1: Chart & Positions (Grows & scrollable independently) */}
+        {/* Left/Center Area: Top [Chart + OrderBook] & Bottom [PositionsPanel spanning both] */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-y-auto scrollbar-thin p-3 gap-3">
-          {/* Chart Panel with toolbar & controls */}
-          <ChartPanel />
+          {/* Top Row: Chart & OrderBook side-by-side with fixed height */}
+          <div className="flex gap-3 h-[480px] shrink-0">
+            {/* Chart takes remaining flexible width */}
+            <div className="flex-1 min-w-0 h-full">
+              <ChartPanel />
+            </div>
 
-          {/* Positions & Orders Tabs Table */}
-          <PositionsPanel />
+            {/* OrderBook has fixed width matching screenshot */}
+            <div className="w-[320px] shrink-0 h-full">
+              <OrderBook />
+            </div>
+          </div>
+
+          {/* Bottom Section: Positions & Orders Table taking full width of Chart + OrderBook */}
+          <div className="w-full">
+            <PositionsPanel />
+          </div>
         </div>
 
-        {/* Column 2: Order Book & Recent Trades (Fixed width, independently scrollable) */}
-        <div className="w-[320px] shrink-0 flex flex-col min-h-0 p-3 pl-0">
-          <OrderBook />
-        </div>
-
-        {/* Column 3: Order Ticket / Entry Form (Fixed width, independently scrollable) */}
-        <div className="w-[320px] shrink-0 flex flex-col min-h-0 p-3 pl-0">
+        {/* Right Column: Order Ticket (Fixed width, full height) */}
+        <div className="w-[320px] shrink-0 flex flex-col min-h-0 p-3 pl-0 overflow-y-auto scrollbar-thin">
           <OrderTicket indexPrice={indexPrice} />
         </div>
       </div>

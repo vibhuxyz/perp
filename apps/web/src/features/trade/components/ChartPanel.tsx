@@ -261,7 +261,7 @@ export function ChartPanel() {
   const isUp = diffNum >= 0;
 
   return (
-    <div className="flex flex-col bg-[#0E121B] rounded-xl border border-[#1A2333] overflow-hidden select-none">
+    <div className="flex flex-col h-full bg-[#0E121B] rounded-xl border border-[#1A2333] overflow-hidden select-none">
       {/* Top Chart Toolbar */}
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-[#1A2333] px-3 gap-2 bg-[#0E121B]">
         {/* Left Toolbar Items: Timeframes & Tools */}
@@ -347,7 +347,7 @@ export function ChartPanel() {
       </div>
 
       {/* Main Chart Body: Left Tools + Canvas */}
-      <div className="flex flex-1 min-h-[360px] relative">
+      <div className="flex flex-1 min-h-0 relative overflow-hidden">
         {/* Left Drawing Tools Sidebar */}
         <div className="w-8 shrink-0 border-r border-[#1A2333] bg-[#0C1018] flex flex-col items-center py-2 gap-2 text-[#6A788E]">
           <button type="button" className="p-1 text-[#00D2FF] bg-[#141C2B] rounded hover:text-white transition-colors" title="Crosshair">
@@ -376,7 +376,7 @@ export function ChartPanel() {
         </div>
 
         {/* Lightweight Charts Canvas Container */}
-        <div ref={chartContainerRef} className="flex-1 min-h-[360px] w-full" />
+        <div ref={chartContainerRef} className="flex-1 min-h-0 w-full" />
       </div>
 
       {/* Bottom Range and Scale Bar */}
