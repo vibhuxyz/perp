@@ -6,9 +6,6 @@
   "exports": {
     ".": "./src/index.ts"
   },
-  "scripts": {
-    "dev": "bun --watch src/index.ts"
-  },
   "devDependencies": {
     "@types/bun": "latest"
   },

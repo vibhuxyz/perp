@@ -1,46 +1,58 @@
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-
-import { MARKET } from "@/app/config";
-import { fetchDepth } from "@/features/trade/api/tradeApi";
-import { OrderBook } from "@/features/trade/components/OrderBook";
-import { OrderTicket } from "@/features/trade/components/OrderTicket";
-import { PositionsTable } from "@/features/positions/components/PositionsTable";
-import { useMarketStore } from "@/stores/market.store";
+import { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { MARKET } from '@/app/config';
+import { fetchDepth } from '@/features/trade/api/tradeApi';
+import { useMarketStore } from '@/stores/market.store';
+import { MarketTickerHeader } from '@/features/trade/components/MarketTickerHeader';
+import { ChartPanel } from '@/features/trade/components/ChartPanel';
+import { PositionsPanel } from '@/features/trade/components/PositionsPanel';
+import { OrderBook } from '@/features/trade/components/OrderBook';
+import { OrderTicket } from '@/features/trade/components/OrderTicket';
 
 export default function TradePage() {
-  const bids = useMarketStore(s => s.bids);
-  const asks = useMarketStore(s => s.asks);
   const indexPrice = useMarketStore(s => s.indexPrice);
   const setBook = useMarketStore(s => s.setBook);
 
-  // Polled, not pushed — the engine has no depth channel yet. This is the one
-  // remaining OK-rung shortcut and it goes away when the backend broadcasts the book.
+  // Poll depth until WebSocket broadcasts the book (Day 1 / GOOD rung)
   const { data: depth } = useQuery({
-    queryKey: ["depth", MARKET],
+    queryKey: ['depth', MARKET],
     queryFn: () => fetchDepth(MARKET),
     refetchInterval: 1_000,
+    retry: false,
   });
 
   useEffect(() => {
-    if (depth) setBook(depth.bids, depth.asks);
+    if (depth && depth.bids && depth.asks) {
+      setBook(depth.bids, depth.asks);
+    }
   }, [depth, setBook]);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_300px_280px]">
-      <section className="flex min-h-64 items-center justify-center rounded border border-border-subtle bg-bg-card text-sm text-text-secondary">
-        Chart — blocked until the engine serves candles
-      </section>
+    <div className="flex flex-col h-full w-full min-h-0 min-w-0 overflow-hidden bg-[#0A0D14]">
+      {/* 1. Market Ticker Header Bar */}
+      <MarketTickerHeader />
 
-      <OrderBook bids={bids} asks={asks} />
-      <OrderTicket indexPrice={indexPrice} />
+      {/* 2. Main 3-Column Trading Workspace */}
+      <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
+        {/* Column 1: Chart & Positions (Grows & scrollable independently) */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-y-auto scrollbar-thin p-3 gap-3">
+          {/* Chart Panel with toolbar & controls */}
+          <ChartPanel />
 
-      <section className="rounded border border-border-subtle bg-bg-card lg:col-span-3">
-        <h2 className="border-b border-border-subtle px-3 py-1.5 text-xs text-text-secondary">
-          Positions
-        </h2>
-        <PositionsTable />
-      </section>
+          {/* Positions & Orders Tabs Table */}
+          <PositionsPanel />
+        </div>
+
+        {/* Column 2: Order Book & Recent Trades (Fixed width, independently scrollable) */}
+        <div className="w-[320px] shrink-0 flex flex-col min-h-0 p-3 pl-0">
+          <OrderBook />
+        </div>
+
+        {/* Column 3: Order Ticket / Entry Form (Fixed width, independently scrollable) */}
+        <div className="w-[320px] shrink-0 flex flex-col min-h-0 p-3 pl-0">
+          <OrderTicket indexPrice={indexPrice} />
+        </div>
+      </div>
     </div>
   );
 }

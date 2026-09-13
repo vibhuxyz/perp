@@ -11,7 +11,10 @@ const MAX_BACKOFF_MS = 30_000;
  */
 export function useWebSocket(url: string, onMessage: (data: unknown) => void) {
   const onMessageRef = useRef(onMessage);
-  onMessageRef.current = onMessage;
+  
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+  }, [onMessage]);
 
   useEffect(() => {
     const { setStatus, messageReceived, reconnected } = useConnectionStore.getState();
@@ -56,7 +59,19 @@ export function useWebSocket(url: string, onMessage: (data: unknown) => void) {
       closed = true;
       clearTimeout(reconnectTimer);
       clearInterval(heartbeat);
-      socket?.close();
+      if (socket) {
+        if (socket.readyState === WebSocket.CONNECTING) {
+          socket.onopen = () => {
+            try {
+              socket?.close();
+            } catch { void 0; }
+          };
+        } else if (socket.readyState === WebSocket.OPEN) {
+          try {
+            socket.close();
+          } catch { void 0; }
+        }
+      }
     };
   }, [url]);
 }

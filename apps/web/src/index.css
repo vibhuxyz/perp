@@ -1,43 +1,121 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 @theme {
-  --color-profit: #22c55e;
-  --color-loss: #ef4444;
-  --color-bg-primary: #0a0a0f;
-  --color-bg-card: #12121a;
-  --color-bg-elevated: #1a1a2e;
-  --color-border-subtle: rgba(255, 255, 255, 0.05);
-  --color-text-primary: #f1f5f9;
-  --color-text-secondary: #94a3b8;
-  --font-mono: ui-monospace, "JetBrains Mono", Consolas, monospace;
+  /* ── Backgrounds ─────────────────────────────────────────────── */
+  --color-bg-base:     #0A0D14;
+  --color-bg-primary:  #0A0D14;
+  --color-bg-card:     #0E121B;
+  --color-bg-elevated: #131824;
+  --color-bg-hover:    #1A2232;
+
+  /* ── Borders ─────────────────────────────────────────────────── */
+  --color-border-subtle: #1A2333;
+  --color-border-hover:  #26334A;
+
+  /* ── Text ────────────────────────────────────────────────────── */
+  --color-text-primary:   #F4F7FB;
+  --color-text-secondary: #8492A6;
+  --color-text-muted:     #556377;
+
+  /* ── Semantic ────────────────────────────────────────────────── */
+  --color-primary:  #7052FF;
+  --color-brand:    #7052FF;
+  --color-profit:   #00F29D;
+  --color-loss:     #FF4D5A;
+  --color-info:     #00D2FF;
+  --color-warning:  #F5B942;
+
+  /* ── Typography ──────────────────────────────────────────────── */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* ── Radius ──────────────────────────────────────────────────── */
+  --radius-sm:  6px;
+  --radius:     10px;
+  --radius-md:  12px;
+  --radius-lg:  16px;
+  --radius-full: 9999px;
+
+  /* ── shadcn/radix compatibility ──────────────────────────────── */
+  --background: var(--color-bg-base);
+  --foreground: var(--color-text-primary);
+  --card:       var(--color-bg-card);
+  --card-foreground: var(--color-text-primary);
+  --popover:    var(--color-bg-elevated);
+  --popover-foreground: var(--color-text-primary);
+  --muted:      var(--color-bg-elevated);
+  --muted-foreground: var(--color-text-secondary);
+  --border:     var(--color-border-subtle);
+  --input:      var(--color-bg-elevated);
+  --ring:       var(--color-brand);
+
+  --primary:    var(--color-brand);
+  --primary-foreground: #ffffff;
+  --secondary:  var(--color-bg-elevated);
+  --secondary-foreground: var(--color-text-primary);
+  --destructive: var(--color-loss);
+  --destructive-foreground: #ffffff;
+  --accent:     var(--color-bg-elevated);
+  --accent-foreground: var(--color-text-primary);
 }
 
+/* ── Scrollbars ─────────────────────────────────────────────────── */
 @utility scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-text-secondary) transparent;
+  scrollbar-color: #1F2A3D transparent;
+  &::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #1F2A3D;
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: #2D3D58;
+  }
 }
 
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+/* ── Root ────────────────────────────────────────────────────────── */
 :root {
   color-scheme: dark;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-}
-
-/* Prices change constantly; proportional digits make the columns jitter. */
-input,
-table,
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
   margin: 0;
-  background: var(--color-bg-primary);
+  padding: 0;
+  background: var(--color-bg-base);
   color: var(--color-text-primary);
+  line-height: 1.5;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
 }
 
+/* ── Tabular numbers ─────────────────────────────────────────────── */
+input[type="number"],
+input.tabular,
+table,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+/* ── Form reset ──────────────────────────────────────────────────── */
 input,
 select,
 button {
@@ -47,6 +125,32 @@ button {
   outline: none;
 }
 
-button {
-  cursor: pointer;
+button { cursor: pointer; }
+
+/* ── Focus ring ──────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 1px;
+}
+
+/* ── Animations ──────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseSubtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-fade-in { animation: fadeIn 0.15s ease-out; }
+.animate-pulse-subtle { animation: pulseSubtle 2s infinite ease-in-out; }
+
+/* ── Reduced motion ──────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

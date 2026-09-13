@@ -1,0 +1,36 @@
+{
+  "name": "@repo/api-gateway",
+  "type": "module",
+  "private": true,
+  "main": "./dist/main.js",
+  "exports": {
+    ".": {
+      "default": "./dist/main.js"
+    }
+  },
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "build": "tsc",
+    "start": "bun src/main.ts"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "express-http-proxy": "^2.1.2",
+    "express-rate-limit": "^8.2.1",
+    "@repo/env-config": "workspace:*"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/bun": "latest",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/express-http-proxy": "^1.6.7",
+    "tsx": "^4.21.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

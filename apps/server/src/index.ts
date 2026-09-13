@@ -6,7 +6,7 @@ import walletRouter from "./router/wallet.route";
 import orderRouter from "./router/order.route";
 import marketRouter from "./router/market.route";
 import adminRouter from "./router/admin.route";
-import { start } from "./exchange";
+import { start, feed } from "./exchange";
 
 const app = express();
 
@@ -30,6 +30,22 @@ app.use("/admin", adminRouter);
 
 start();
 
-app.listen(ENV.PORT, () => {
+const server = app.listen(ENV.PORT, () => {
   console.log(`server listening on http://localhost:${ENV.PORT}`);
 });
+
+server.on("error", (err: any) => {
+  console.error(`[Server] Error on port ${ENV.PORT}:`, err?.message || err);
+});
+
+const cleanup = () => {
+  try {
+    server.close();
+    feed?.close();
+  } catch {}
+  process.exit(0);
+};
+
+process.on("SIGINT", cleanup);
+process.on("SIGTERM", cleanup);
+

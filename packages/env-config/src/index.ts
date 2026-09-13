@@ -26,11 +26,27 @@ const missing: string[] = [];
 export const ENV = {
   NODE_ENV: process.env.NODE_ENV || "development",
 
+  API_GATEWAY_PORT: Number(process.env.API_GATEWAY_PORT ?? 8080),
   PORT: Number(process.env.PORT ?? 6000),
-  WS_PORT: Number(process.env.WS_PORT ?? 7000),
+  // Not 7000 — macOS ControlCenter binds it for AirPlay Receiver, so the feed dies
+  // with EADDRINUSE on a stock Mac before it ever accepts a client.
+  WS_PORT: Number(process.env.WS_PORT ?? 7070),
 
   DATABASE_URL: required("DATABASE_URL"),
   JWT_SECRET: required("JWT_SECRET"),
+  ACCESS_TOKEN_JWT_SECRET_KEY:
+    process.env.ACCESS_TOKEN_JWT_SECRET_KEY || process.env.JWT_SECRET || "",
+  REFRESH_TOKEN_JWT_SECRET_KEY:
+    process.env.REFRESH_TOKEN_JWT_SECRET_KEY || process.env.JWT_SECRET || "",
+
+  CORS_ORIGINS: process.env.CORS_ORIGINS || "",
+
+  // Upstream service URLs for API Gateway
+  AUTH_SERVICE_URL: process.env.AUTH_SERVICE_URL || `http://localhost:${process.env.PORT ?? 6000}`,
+  ORDER_SERVICE_URL: process.env.ORDER_SERVICE_URL || `http://localhost:${process.env.PORT ?? 6000}`,
+  MARKET_SERVICE_URL: process.env.MARKET_SERVICE_URL || `http://localhost:${process.env.PORT ?? 6000}`,
+  WALLET_SERVICE_URL: process.env.WALLET_SERVICE_URL || `http://localhost:${process.env.PORT ?? 6000}`,
+  WS_SERVICE_URL: process.env.WS_SERVICE_URL || `ws://localhost:${process.env.WS_PORT ?? 7070}`,
 
   REDIS_URL: process.env.REDIS_URL || "redis://localhost:6379",
   // 29092 is the host-facing listener in docker-compose.dev.yml; 9092 advertises the

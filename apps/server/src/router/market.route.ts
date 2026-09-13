@@ -28,31 +28,53 @@ router.get("/depth/:market", (req, res) => {
   });
 });
 
-router.get("/positions", authMiddleware, (req, res) => {
-  //@ts-ignore
-  const positions = exchange.ledger.userPositions.get(String(req.userId)) ?? [];
-
-  res.json(positions.map(p => ({
-    market: p.market,
-    side: p.side,
-    quantity: p.quantity.toString(),
-    averagePrice: p.averagePrice.toString(),
-    margin: p.margin.toString(),
-    liquidationPrice: p.liquidationPrice.toString(),
-  })));
-});
-
-router.get("/equity", authMiddleware, (req, res) => {
-  //@ts-ignore
-  const collateral = exchange.ledger.usersCollateral.get(String(req.userId));
-
-  if (!collateral) {
-    return res.status(404).json({ error: "No collateral for user" });
+router.get("/positions", (req, res, next) => {
+  const authHeader = (req.headers.authorization || req.headers.token) as string;
+  if (!authHeader) {
+    return res.json([]);
   }
 
-  res.json({
-    availableBalance: collateral.availableBalance.toString(),
-    marginLocked: collateral.marginLocked.toString(),
+  return authMiddleware(req, res, () => {
+    //@ts-ignore
+    const positions = exchange.ledger.userPositions.get(String(req.userId)) ?? [];
+
+    res.json(
+      positions.map((p) => ({
+        market: p.market,
+        side: p.side,
+        quantity: p.quantity.toString(),
+        averagePrice: p.averagePrice.toString(),
+        margin: p.margin.toString(),
+        liquidationPrice: p.liquidationPrice.toString(),
+      })),
+    );
+  });
+});
+
+router.get("/equity", (req, res, next) => {
+  const authHeader = (req.headers.authorization || req.headers.token) as string;
+  if (!authHeader) {
+    return res.json({
+      availableBalance: "0",
+      marginLocked: "0",
+    });
+  }
+
+  return authMiddleware(req, res, () => {
+    //@ts-ignore
+    const collateral = exchange.ledger.usersCollateral.get(String(req.userId));
+
+    if (!collateral) {
+      return res.json({
+        availableBalance: "0",
+        marginLocked: "0",
+      });
+    }
+
+    res.json({
+      availableBalance: collateral.availableBalance.toString(),
+      marginLocked: collateral.marginLocked.toString(),
+    });
   });
 });
 

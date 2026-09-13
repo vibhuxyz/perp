@@ -17,10 +17,24 @@ export class MarketFeed {
     this.wss = new WebSocketServer({ port });
     this.clients = new Set();
 
+    this.wss.on("error", (err: any) => {
+      console.error(`[MarketFeed] WebSocket server error on port ${port}:`, err?.message || err);
+    });
+
     this.wss.on("connection", socket => {
       this.clients.add(socket);
       socket.on("close", () => this.clients.delete(socket));
     });
+  }
+
+  public close(): void {
+    for (const client of this.clients) {
+      try {
+        client.close();
+      } catch {}
+    }
+    this.clients.clear();
+    this.wss.close();
   }
 
   public broadcast(event: MarketEvent): void {

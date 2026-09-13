@@ -68,3 +68,9 @@ export const deposit = (amount: string) =>
     method: "POST",
     body: JSON.stringify({ amount }),
   });
+
+export const closePosition = (market: string) =>
+  api("/api/positions/close", z.object({ success: z.boolean() }), {
+    method: "POST",
+    body: JSON.stringify({ market }),
+  });
