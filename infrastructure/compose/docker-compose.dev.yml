@@ -1,3 +1,4 @@
+name: perp
 services:
   # apache/kafka-native is a GraalVM-compiled native build of Apache Kafka
   # running in KRaft mode, so it replaces both the old kafka and zookeeper
@@ -37,9 +38,12 @@ services:
     ports:
       - "6379:6379"
 
-  postgres:
-    image: postgres:15-alpine
-    container_name: postgres
+  timescaledb:
+    # TimescaleDB is Postgres plus hypertables. Same DATABASE_URL as Postgres.
+    # No `latest` tag — pin pg16. Old postgres:15-alpine `pgdata` volumes are
+    # incompatible: `docker compose down -v` once, then bring this up.
+    image: timescale/timescaledb:2.30.2-pg16
+    container_name: timescaledb
     environment:
       POSTGRES_USER: perp
       POSTGRES_PASSWORD: password
@@ -47,7 +51,13 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./init-timescaledb.sql:/docker-entrypoint-initdb.d/001-timescaledb.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U perp -d perp_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   minio:
     # MinIO stopped publishing to Docker Hub; quay.io is the registry that serves it.
@@ -64,5 +74,5 @@ services:
       - minio_data:/data
 
 volumes:
-  pgdata:
+  timescaledb_data:
   minio_data:

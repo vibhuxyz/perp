@@ -39,6 +39,7 @@ export interface Position {
   margin: bigint;
   liquidationPrice: bigint;
   averagePrice: bigint;
+  totalNotional?: bigint;
 }
 
 export interface Collateral {

@@ -58,7 +58,7 @@ component subscribes to the narrowest selector it can.
 | Forms | React Hook Form | 7.76 | |
 | Validation | Zod | — | 4.x, to add at GOOD. Schema-first. |
 | Financial math | Decimal.js | — | 10.x, to add at GOOD. Never `number` for price or size. |
-| Charts | KLineChart | — | 10.0.3, Apache 2.0, ~40KB, zero deps |
+| Charts | Lightweight Charts | **5.2** | Installed. PaperTrade spec. Generated data until Timescale `/candles` |
 | Realtime | native WebSocket | — | no library |
 | Heavy processing | Web Workers | — | AWESOME rung, gated on profiling |
 | Local storage | Dexie (IndexedDB) | — | 4.x, BETTER rung, once there is data worth caching |
@@ -90,9 +90,10 @@ What is still OK-rung shaped, and why:
 * **Depth is polled every second.** The engine broadcasts fills, index ticks, funding and
   liquidations, but not the book. This is the last polling loop and it dies when the backend
   gets a depth channel.
-* **The chart is a placeholder box.** No `/candles` endpoint exists.
+* **The chart paints generated candles** via `lightweight-charts` (not KLineChart). No
+  `/candles` endpoint and no Timescale hypertable yet — BETTER replaces the generator.
 * **Positions refetch on an interval** rather than invalidating off a WebSocket event.
-* No tests yet; no shadcn primitives yet.
+* No Vitest tests yet. shadcn primitives live in `src/components/ui/`.
 
 ---
 
@@ -103,7 +104,7 @@ stay honest. A frontend rung cannot land before its backend row.
 
 | Frontend need | Backend today | Gap |
 | :--- | :--- | :--- |
-| **Candlestick chart** | no candle storage, no route | **KLineChart has nothing to load. The entire chart section is blocked.** |
+| **Candlestick chart** | no candle storage, no route | UI paints generated candles. Timescale hypertables + `/candles` at BETTER |
 | Live orderbook | broadcasts `fill`, `index`, `funding`, `liquidation` | no depth events; UI must keep polling |
 | Sequence / resync | no sequence numbers | cannot detect a dropped message |
 | Channels | one firehose to every client | no `SUBSCRIBE`, no private per-user channels |
@@ -115,8 +116,8 @@ stay honest. A frontend rung cannot land before its backend row.
 | 24h change / ticker | not computed | header stats have no source |
 | Cookie auth | returns a JWT for the `token` header | `localStorage` token stays until BEST |
 
-**Read this before starting a UI day.** Building the chart panel before `/candles` exists means
-building against a mock you then throw away.
+**Read this before starting a UI day.** The chart panel already exists against generated data.
+Do not add a second chart library. Wire it to `/candles` when Timescale hypertables land.
 
 ---
 
@@ -379,9 +380,15 @@ export function useWebSocket(url: string, onMessage: (data: unknown) => void) {
 At BETTER this grows a subscription manager and sequence checking and moves out of `shared/hooks`
 into a proper `realtime/` layer. Don't build that on Day 2.
 
-## Chart — KLineChart v10
+## Chart — Lightweight Charts v5 (installed)
 
-**Blocked until the backend serves candles.** Nothing below is buildable before then.
+The terminal already uses `lightweight-charts` with generated candles. KLineChart snippets
+below are leftover from an earlier spec — do not add a second chart library. Wire
+`setData` / `update` to `GET /candles` when Timescale hypertables land at BETTER.
+
+**Historical spec (KLineChart v10), kept for reference:**
+
+**Blocked until the backend serves candles.** The panel is built; the data source is not.
 
 What v10 gives you without writing it yourself:
 

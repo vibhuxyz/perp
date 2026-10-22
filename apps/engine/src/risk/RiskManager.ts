@@ -1,7 +1,6 @@
-import type { Order, Position, Market } from "../types/index";
+import type { Order, Position, Market, Side } from "../types/index";
 import type { Ledger } from "../core/Ledger";
 import type { MatchingEngine } from "../core/MatchingEngine";
-import { calculatePnL } from "./calculatePnL";
 import { isLiquidatable } from "./risk";
 
 export class RiskManager {
@@ -16,7 +15,6 @@ export class RiskManager {
   public checkLiquidations(market: Market, currentIndexPrice: bigint): Position[] {
     const breaching: Position[] = [];
 
-    // Collect first: liquidating mid-iteration rebuilds the position lists we are walking.
     for (const positions of this.ledger.userPositions.values()) {
       for (const position of positions) {
         if (position.market === market && isLiquidatable(position, currentIndexPrice)) {
@@ -26,33 +24,74 @@ export class RiskManager {
     }
 
     for (const position of breaching) {
-      this.liquidate(position, currentIndexPrice);
+      this.liquidatePosition(position);
     }
 
     return breaching;
   }
 
-  private liquidate(position: Position, indexPrice: bigint): void {
+  public liquidatePosition(position: Position): void {
+    const closingSide: Side = position.side === "LONG" ? "SHORT" : "LONG";
+    const leverage = position.margin > 0n
+      ? (position.averagePrice * position.quantity) / position.margin
+      : 1n;
+
     const closingOrder: Order = {
       userId: position.userId,
       orderId: `liquidation-${position.userId}-${Date.now()}`,
       market: position.market,
-      side: position.side === "LONG" ? "SHORT" : "LONG",
+      side: closingSide,
       type: "MARKET",
       quantity: position.quantity,
       price: 0n,
-      leverage: 1n,
+      leverage,
       status: "resting",
       createdAt: new Date(),
     };
 
-    this.matchingEngine.processOrder(closingOrder);
+    const fills = this.matchingEngine.processOrder(closingOrder);
+    if (fills.length === 0) {
+      return;
+    }
 
-    // Settles against the index price rather than what the close actually filled at,
-    // and leaves the counterparty position untouched. Both are the GOOD rung.
-    const pnl = calculatePnL(position, indexPrice);
+    const totalQuantity = position.quantity;
+    const totalMargin = position.margin;
+    let remainingQuantity = totalQuantity;
+    let remainingMargin = totalMargin;
 
-    this.ledger.settlePnL(position.userId, pnl, position.margin);
-    this.ledger.closePosition(position.userId, position.market);
+    for (const fill of fills) {
+      this.ledger.updatePosition(
+        fill.makerUserId,
+        fill.market,
+        position.side,
+        fill.quantity,
+        fill.price,
+        fill.leverage,
+      );
+
+      const pnl = position.side === "LONG"
+        ? (fill.price - position.averagePrice) * fill.quantity
+        : (position.averagePrice - fill.price) * fill.quantity;
+
+      const marginFreed = fill.quantity === remainingQuantity
+        ? remainingMargin
+        : (totalMargin * fill.quantity) / totalQuantity;
+
+      remainingQuantity -= fill.quantity;
+      remainingMargin -= marginFreed;
+
+      this.ledger.settlePnL(position.userId, pnl, marginFreed);
+    }
+
+    if (remainingQuantity === 0n) {
+      this.ledger.closePosition(position.userId, position.market);
+      return;
+    }
+
+    position.quantity = remainingQuantity;
+    position.margin = remainingMargin;
+    position.liquidationPrice = position.side === "LONG"
+      ? position.averagePrice - (position.margin / position.quantity)
+      : position.averagePrice + (position.margin / position.quantity);
   }
 }

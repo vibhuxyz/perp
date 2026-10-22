@@ -39,8 +39,8 @@ exchange.placeOrder(order({
   quantity: 10n, price: 50_000n, leverage: 2n,
 }));
 
-check("alice locks initial margin", exchange.ledger.usersCollateral.get("alice")!.marginLocked, 250_000n);
-check("alice available drops", exchange.ledger.usersCollateral.get("alice")!.availableBalance, 750_000n);
+check("alice locks initial margin", exchange.ledger.usersCollateral.get("alice")?.marginLocked, 250_000n);
+check("alice available drops", exchange.ledger.usersCollateral.get("alice")?.availableBalance, 750_000n);
 
 const fills = exchange.placeOrder(order({
   userId: "bob", orderId: "b1", side: "SHORT", type: "MARKET",
@@ -48,12 +48,19 @@ const fills = exchange.placeOrder(order({
 }));
 
 check("one fill", fills.length, 1);
-check("fill price is the maker's", fills[0]!.price, 50_000n);
-check("bob locks margin from the fill", exchange.ledger.usersCollateral.get("bob")!.marginLocked, 125_000n);
-check("alice holds a LONG", exchange.ledger.getPosition("alice", "BTC-PERP")!.side, "LONG");
-check("bob holds a SHORT", exchange.ledger.getPosition("bob", "BTC-PERP")!.side, "SHORT");
-check("alice position size", exchange.ledger.getPosition("alice", "BTC-PERP")!.quantity, 5n);
-assertNoNegativeBalances(exchange, "after match");
+check("fill price is the maker's", fills[0]?.price, 50_000n);
+check("bob locks margin from the fill", exchange.ledger.usersCollateral.get("bob")?.marginLocked, 125_000n);
+check("alice holds a LONG", exchange.ledger.getPosition("alice", "BTC-PERP")?.side, "LONG");
+check("bob holds a SHORT", exchange.ledger.getPosition("bob", "BTC-PERP")?.side, "SHORT");
+check("alice position size", exchange.ledger.getPosition("alice", "BTC-PERP")?.quantity, 5n);
+check("alice resting orders count before cancel", exchange.getRestingOrders("alice").length, 1);
+const cancelled = exchange.cancelOrder("BTC-PERP", "alice", "a1");
+check("cancelled status", cancelled?.status, "cancelled");
+check("cancelled remaining quantity", cancelled?.quantity, 5n);
+check("alice margin unlocked after cancel", exchange.ledger.usersCollateral.get("alice")?.marginLocked, 125_000n);
+check("alice available balance restored after cancel", exchange.ledger.usersCollateral.get("alice")?.availableBalance, 875_000n);
+check("alice resting orders count after cancel", exchange.getRestingOrders("alice").length, 0);
+assertNoNegativeBalances(exchange, "after match and cancel");
 
 console.log("\nLiquidation");
 
@@ -62,7 +69,6 @@ liq.createMarket("BTC-PERP");
 liq.deposit("victim", 1_000_000n);
 liq.deposit("maker", 10_000_000n);
 
-// Victim goes long 10 @ 50000 at 10x, so margin is only 50000.
 liq.placeOrder(order({
   userId: "maker", orderId: "m1", side: "SHORT", type: "LIMIT",
   quantity: 10n, price: 50_000n, leverage: 10n,
@@ -72,11 +78,10 @@ liq.placeOrder(order({
   quantity: 10n, leverage: 10n,
 }));
 
-check("victim is long", liq.ledger.getPosition("victim", "BTC-PERP")!.side, "LONG");
-check("victim margin", liq.ledger.getPosition("victim", "BTC-PERP")!.margin, 50_000n);
+check("victim is long", liq.ledger.getPosition("victim", "BTC-PERP")?.side, "LONG");
+check("victim margin", liq.ledger.getPosition("victim", "BTC-PERP")?.margin, 50_000n);
 check("safe at 50000", liq.riskManager.checkLiquidations("BTC-PERP", 50_000n).length, 0);
 
-// Seed a bid so the forced close has something to hit.
 liq.placeOrder(order({
   userId: "maker", orderId: "m2", side: "LONG", type: "LIMIT",
   quantity: 10n, price: 44_000n, leverage: 10n,
@@ -86,9 +91,52 @@ const liquidated = liq.riskManager.checkLiquidations("BTC-PERP", 44_000n);
 
 check("liquidated one position", liquidated.length, 1);
 check("victim position is gone", liq.ledger.getPosition("victim", "BTC-PERP"), undefined);
-check("victim margin released", liq.ledger.usersCollateral.get("victim")!.marginLocked, 0n);
-check("victim ate the loss", liq.ledger.usersCollateral.get("victim")!.availableBalance, 940_000n);
+check("victim margin released", liq.ledger.usersCollateral.get("victim")?.marginLocked, 0n);
+check("victim ate the loss", liq.ledger.usersCollateral.get("victim")?.availableBalance, 940_000n);
+check("counterparty position updated", liq.ledger.getPosition("maker", "BTC-PERP") !== undefined, true);
 assertNoNegativeBalances(liq, "after liquidation");
+
+console.log("\nPartial Liquidation");
+
+const partialExchange = new Exchange();
+partialExchange.createMarket("BTC-PERP");
+partialExchange.deposit("victim2", 1_000_000n);
+partialExchange.deposit("maker2", 10_000_000n);
+
+partialExchange.placeOrder(order({
+  userId: "maker2", orderId: "pm1", side: "SHORT", type: "LIMIT",
+  quantity: 10n, price: 50_000n, leverage: 10n,
+}));
+partialExchange.placeOrder(order({
+  userId: "victim2", orderId: "pv1", side: "LONG", type: "MARKET",
+  quantity: 10n, leverage: 10n,
+}));
+
+partialExchange.placeOrder(order({
+  userId: "maker2", orderId: "pm2", side: "LONG", type: "LIMIT",
+  quantity: 4n, price: 44_000n, leverage: 10n,
+}));
+
+const partialLiq = partialExchange.riskManager.checkLiquidations("BTC-PERP", 44_000n);
+check("partial liquidation triggered", partialLiq.length, 1);
+const remainingPos = partialExchange.ledger.getPosition("victim2", "BTC-PERP");
+check("partial liquidation shrinks quantity", remainingPos?.quantity, 6n);
+check("partial liquidation shrinks margin", remainingPos?.margin, 30_000n);
+check("partial liquidation victim margin locked", partialExchange.ledger.usersCollateral.get("victim2")?.marginLocked, 30_000n);
+check("partial liquidation victim ate partial loss", partialExchange.ledger.usersCollateral.get("victim2")?.availableBalance, 946_000n);
+check("partial liquidation maker position exists", partialExchange.ledger.getPosition("maker2", "BTC-PERP") !== undefined, true);
+assertNoNegativeBalances(partialExchange, "after partial liquidation");
+
+partialExchange.placeOrder(order({
+  userId: "maker2", orderId: "pm3", side: "LONG", type: "LIMIT",
+  quantity: 6n, price: 44_000n, leverage: 10n,
+}));
+
+partialExchange.riskManager.checkLiquidations("BTC-PERP", 44_000n);
+check("full close after remaining liquidity", partialExchange.ledger.getPosition("victim2", "BTC-PERP"), undefined);
+check("full margin released", partialExchange.ledger.usersCollateral.get("victim2")?.marginLocked, 0n);
+check("final victim available balance", partialExchange.ledger.usersCollateral.get("victim2")?.availableBalance, 940_000n);
+assertNoNegativeBalances(partialExchange, "after full liquidation");
 
 console.log(`\n${failures === 0 ? "all checks passed" : `${failures} check(s) failed`}\n`);
 process.exit(failures === 0 ? 0 : 1);

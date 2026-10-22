@@ -9,7 +9,7 @@ export function formatPrice(value: Decimal.Value | null | undefined): string {
   if (value === null || value === undefined || value === "") {
     return "—";
   }
-
+  
   return grouped.format(new Decimal(value).toNumber());
 }
 

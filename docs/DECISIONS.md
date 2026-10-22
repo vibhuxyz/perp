@@ -12,7 +12,7 @@ This document acts as our project's memory. Whenever we make a significant archi
 
 ---
 ---
-### DECISION-001: Perpetual MVP Scope Constraints
+### DECISION-001: Perpetual MVP Scope Constraints *(historical — engine now has market orders and partial fills)*
 *   **Decision:** We are building a single-market (BTC-PERP), single-collateral (USDC) matching engine with exact matching (no partial fills) and no market orders.
 *   **Why we chose it:** To aggressively limit scope so we can focus on the core engineering challenge: the distributed systems architecture (Kafka, Go Engine, Redis, Websockets) and matching algorithm correctness without being bogged down by edge cases like complex margin calculations or partial fills.
 *   **Alternatives considered:** Building a multi-market, cross-margin platform with all order types. We rejected this because it introduces domain complexity too early.
@@ -105,3 +105,45 @@ This document acts as our project's memory. Whenever we make a significant archi
 *   **When we might change it:** The moment anything touches real money or a public deployment,
     the gate comes back and blocks hard.
 
+
+---
+### DECISION-008: Treat the Exchange as an Engineering Laboratory
+*   **Decision:** Adopt the Engineering-First master prompt for this project (Exchange identity:
+    *deterministic, low-latency trading-system laboratory*). Work is framed as hard problems and
+    experiments, not features. Every rung gains three artefacts: **invariants** written down,
+    **failure experiments** that break and recover the system, and **benchmarks** that record
+    numbers before any optimisation. Docs added: `INVARIANTS.md`, `BENCHMARKS.md`, `FAILURES.md`;
+    this file is the design-decisions log.
+*   **Why we chose it:** The goal is to demonstrate depth: understand mechanisms, measure
+    bottlenecks, prove recovery. A working exchange with no numbers and no failure evidence
+    demonstrates only that features exist.
+*   **Alternatives considered:** Keep the ladder as a pure feature checklist. Rejected — it never
+    forces measurement or failure testing, which is the point of the project.
+*   **Trade-offs:** More writing per rung (invariants, experiment notes, writeups). Fewer UI/feature
+    additions. A feature is only added when it enables an experiment or a rung gate.
+*   **Compatibility:** Does not replace DECISION-006. The ladder still sets the *order*; the master
+    prompt sets the *standard of evidence* at each rung. The AWESOME rule stays: no data-structure
+    change without a baseline benchmark and a profile.
+*   **When we might change it:** Never relax "no invented numbers". The experiment cadence may be
+    trimmed if it starves the ladder of time.
+
+---
+### DECISION-009: TimescaleDB as the Postgres
+*   **Decision:** Local and production SQL is **TimescaleDB** (`timescale/timescaledb:2.30.2-pg16`),
+    not vanilla Postgres. One database, one `DATABASE_URL`. Relational tables (users, orders,
+    positions, collateral) stay ordinary Postgres tables via Drizzle. Time-series data (fills,
+    trades, OHLCV candles) will be hypertables, created at the BETTER rung when `/candles` and
+    batched `db-writer` inserts land.
+*   **Why we chose it:** Candles and trade prints are append-only time-series. Hypertables give
+    chunked ingest and time-range scans without a second store. Timescale speaks the Postgres
+    protocol, so Drizzle and `pg` stay as they are.
+*   **Alternatives considered:** Vanilla Postgres for everything (rejected — candle queries at
+    BETTER would scan unbounded `trades` rows). A separate Timescale instance next to Postgres
+    (rejected — two `DATABASE_URL`s and two backup stories for one local lab). ClickHouse
+    (rejected — another dialect and operational surface before we have a candle to store).
+*   **Trade-offs:** Docker image is larger than `postgres:15-alpine`. Existing `pgdata` volumes
+    from vanilla Postgres cannot be reused; recreate the volume once. Timescale 2.29+ dropped
+    PG15, so we moved to PG16 with the image pin.
+*   **When we might change it:** If candle/trade volume never justifies hypertables, we can keep
+    using it as ordinary Postgres and never call `create_hypertable`. If analytics outgrow
+    Timescale, revisit ClickHouse at AWESOME with a benchmark, not before.

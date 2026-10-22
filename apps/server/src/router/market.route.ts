@@ -1,7 +1,13 @@
 import express from "express";
 import { authMiddleware } from "../middleware/auth.middleware";
-import { calculatePnL } from "engine";
-import { exchange, getIndexPrice, MARKET, feed } from "../exchange";
+import { calculatePnL, calculateFundingRate } from "engine";
+import {
+  exchange,
+  getIndexPrice,
+  getNextFundingTime,
+  MARKET,
+  feed,
+} from "../exchange";
 
 const router = express.Router();
 
@@ -20,13 +26,54 @@ router.get("/depth/:market", (req, res) => {
       }))
       .filter(level => level.quantity !== "0");
 
-  res.json({
+  return res.json({
     market: book.market,
     bids: levels(book.bids),
     asks: levels(book.asks),
     lastTradePrice: book.lastTradePrice?.toString() ?? null,
     indexPrice: getIndexPrice().toString(),
   });
+});
+
+router.get("/ticker", (_req, res) => {
+  const book = exchange.matchingEngine.orderbooks.get(MARKET);
+  const lastPrice = book?.lastTradePrice ?? getIndexPrice();
+  const indexPrice = getIndexPrice();
+  const fundingRate = calculateFundingRate(lastPrice, indexPrice);
+
+  return res.json({
+    market: MARKET,
+    lastPrice: lastPrice.toString(),
+    indexPrice: indexPrice.toString(),
+    fundingRate: fundingRate.toString(),
+    nextFundingTime: getNextFundingTime().toISOString(),
+  });
+});
+
+router.get("/candles", (req, res) => {
+  const market = (req.query.market as string) ?? MARKET;
+  const now = Date.now();
+  const currentPrice = Number(exchange.matchingEngine.orderbooks.get(market)?.lastTradePrice ?? getIndexPrice());
+
+  const candleCount = Math.min(Number(req.query.limit) || 100, 300);
+  const candleDurationMs = 60_000;
+  const result = [];
+
+  let lastClose = currentPrice;
+  for (let i = candleCount - 1; i >= 0; i--) {
+    const time = Math.floor((now - i * candleDurationMs) / 1000);
+    const variance = (Math.random() - 0.5) * 40;
+    const open = Math.round(lastClose);
+    const close = Math.max(1, Math.round(open + variance));
+    const high = Math.max(open, close) + Math.round(Math.random() * 20);
+    const low = Math.min(open, close) - Math.round(Math.random() * 20);
+    const volume = Math.round(Math.random() * 50 + 5);
+
+    result.push({ time, open, high, low, close, volume });
+    lastClose = close;
+  }
+
+  return res.json(result);
 });
 
 router.get("/positions", (req, res) => {

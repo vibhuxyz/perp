@@ -49,6 +49,13 @@ This document continuously tracks engineering concepts learned, mistakes made, a
 * **Insurance Fund & ADL:** If price gaps past the liquidation price, the forced close fills worse than the bankruptcy price and the loss is real. The insurance fund (built from liquidation penalties) absorbs it. When the fund is drained, exchanges fall back to Auto-Deleveraging: forcibly closing the most profitable, highest-leverage traders on the other side. Without either, one violent tick makes the exchange insolvent.
 * **Where Liquidation Bugs Hide:** In the race between "price update" and "margin check". A position can be checked as safe, then the price moves, then an order is accepted against stale margin. Load tests that hammer rapid price updates *concurrently* with order flow are what surface this — a single-threaded happy-path test never will.
 
+* **Engineering-first loop:** Hard problem -> first principles -> minimal baseline -> benchmark -> profile -> find bottleneck -> optimise -> break it -> recover -> benchmark again -> explain. Never jump from idea to framework to feature.
+* **Invariants:** A property that must always hold (e.g. no negative balance, replay gives identical state). Write them down first; tests and failure experiments then try to break them.
+* **Percentile latency:** p50 is the typical request, p99 is the slow tail. Averages hide tail latency, and the tail is what users of a trading system feel. Always record p50/p95/p99, not the mean.
+* **Profile before optimising:** Intuition about the bottleneck is usually wrong. Measure the baseline, profile, change one thing, measure again, and record the trade-off.
+* **Compare designs, don't cite convention:** Say "I evaluated A/B/C and B won under this workload", never "it is industry standard".
+* **First-principles checklist for a technology (Kafka, Redis, Postgres):** what problem it solves, what guarantee it gives, what it costs, what happens on failure and at scale, when NOT to use it, and could I build a minimal version.
+
 ## Engineering Habits to Improve
 * Thinking about failure modes before implementation.
 * Implementing iteratively (V0 -> V4) rather than skipping to production-ready architecture.
@@ -57,6 +64,10 @@ This document continuously tracks engineering concepts learned, mistakes made, a
   the components exist. Polishing one piece in isolation feels productive and teaches the least.
 * **Let the system pull the improvement.** Upgrade a component when something concrete needs it,
   not when it offends you. A naive orderbook that is never the bottleneck never needs a tree.
+
+* **AI writes code, I own the decisions.** Hand-write core mechanisms (matching, margin math, WAL, invariants, benchmarks). Use AI for plumbing and read what it writes. Vibe-code only UI and boilerplate.
+* **Evidence over adjectives.** Never write "scalable" or "fast" without a measurement next to it.
+* **Break things on purpose.** A recovery path that was never exercised does not exist.
 
 ## Common Mistakes
 * *(To be updated as the project progresses)*

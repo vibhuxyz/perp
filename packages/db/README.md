@@ -1,15 +1,14 @@
-# db
+# @repo/db
 
-To install dependencies:
+Drizzle schema and client for **TimescaleDB** (Postgres 16 + `timescaledb` extension). Same
+`DATABASE_URL` as vanilla Postgres.
 
-```bash
-bun install
-```
-
-To run:
+Relational tables (users, orders, positions, collateral) are ordinary Postgres tables.
+Fills, trades, and OHLCV candles become hypertables at the BETTER rung.
 
 ```bash
-bun run index.ts
+bun run db:generate
+bun run db:migrate
 ```
 
-This project was created using `bun init` in bun v1.3.13. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+`DATABASE_URL=postgres://perp:password@localhost:5432/perp_db`

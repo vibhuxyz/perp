@@ -17,7 +17,7 @@ export class Ledger {
     }
 
     if (user.availableBalance < amount) {
-      throw new Error("Insufficient balance!");
+      throw new Error(`Insufficient balance! Available: ${user.availableBalance.toString()}, required: ${amount.toString()}`);
     }
 
     user.availableBalance -= amount;
@@ -50,6 +50,7 @@ export class Ledger {
     const positions = this.userPositions.get(userId) ?? [];
     const existing = positions.find(p => p.market === market);
     const margin = (fillPrice * fillQuantity) / leverage;
+    const fillNotional = fillPrice * fillQuantity;
 
     if (!existing) {
       positions.push({
@@ -59,23 +60,27 @@ export class Ledger {
         quantity: fillQuantity,
         averagePrice: fillPrice,
         margin,
+        totalNotional: fillNotional,
         liquidationPrice: side === "LONG"
-          ? fillPrice - (margin / fillQuantity)
-          : fillPrice + (margin / fillQuantity),
+          ? (fillNotional - margin) / fillQuantity
+          : (fillNotional + margin) / fillQuantity,
       });
 
       this.userPositions.set(userId, positions);
       return;
     }
 
-    existing.averagePrice =
-      (existing.quantity * existing.averagePrice + fillQuantity * fillPrice) /
-      (existing.quantity + fillQuantity);
-    existing.quantity += fillQuantity;
+    const existingNotional = existing.totalNotional ?? (existing.quantity * existing.averagePrice);
+    const newTotalNotional = existingNotional + fillNotional;
+    const newQuantity = existing.quantity + fillQuantity;
+
+    existing.totalNotional = newTotalNotional;
+    existing.quantity = newQuantity;
+    existing.averagePrice = newTotalNotional / newQuantity;
     existing.margin += margin;
     existing.liquidationPrice = existing.side === "LONG"
-      ? existing.averagePrice - (existing.margin / existing.quantity)
-      : existing.averagePrice + (existing.margin / existing.quantity);
+      ? (newTotalNotional - existing.margin) / newQuantity
+      : (newTotalNotional + existing.margin) / newQuantity;
   }
 
   public getPosition(userId: string, market: Market): Position | undefined {

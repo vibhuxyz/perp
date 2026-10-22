@@ -29,10 +29,36 @@ export class Orderbook {
       : this.matchShortOrder(order);
 
     if (fills.length > 0) {
-      this.lastTradePrice = fills[fills.length - 1]!.price;
+      this.lastTradePrice = fills[fills.length - 1]?.price ?? null;
     }
 
     return fills;
+  }
+
+  public cancelOrder(orderId: string): Order | undefined {
+    for (const [price, level] of this.bids.entries()) {
+      const index = level.orders.findIndex(o => o.orderId === orderId);
+      if (index !== -1) {
+        const [cancelled] = level.orders.splice(index, 1);
+        if (level.orders.length === 0) {
+          this.bids.delete(price);
+        }
+        return cancelled;
+      }
+    }
+
+    for (const [price, level] of this.asks.entries()) {
+      const index = level.orders.findIndex(o => o.orderId === orderId);
+      if (index !== -1) {
+        const [cancelled] = level.orders.splice(index, 1);
+        if (level.orders.length === 0) {
+          this.asks.delete(price);
+        }
+        return cancelled;
+      }
+    }
+
+    return undefined;
   }
 
   // Shared by matchLongOrder/matchShortOrder: walk the opposing book (best price first,

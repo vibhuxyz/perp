@@ -54,7 +54,7 @@ export default function TradePage() {
             </div>
 
             {/* OrderBook has fixed width matching screenshot */}
-            <div className="w-[320px] shrink-0 h-full">
+            <div className="w-[260px] shrink-0 h-full">
               <OrderBook />
             </div>
           </div>
@@ -66,7 +66,7 @@ export default function TradePage() {
         </div>
 
         {/* Right Column: Order Ticket (Fixed width, full height) */}
-        <div className="w-[320px] shrink-0 flex flex-col min-h-0 p-3 pl-0 overflow-y-auto scrollbar-thin">
+        <div className="w-[420px] shrink-0 flex flex-col min-h-0 p-3 pl-0 overflow-y-auto scrollbar-thin">
           <OrderTicket indexPrice={indexPrice} />
         </div>
       </div>

@@ -11,6 +11,10 @@ rungs are blocked on engine work listed there; check that table before starting 
 offends you. The matching engine stays naive until something concrete needs it faster — that
 is the whole point, and it is the easiest rule to break.
 
+> **Engineering-lab standard (DECISION-008):** each rung below also has an **Evidence** block —
+> invariants, failure experiments, benchmarks. A rung is not done until its gate *and* its
+> evidence are written down. Docs: `INVARIANTS.md`, `BENCHMARKS.md`, `FAILURES.md`.
+
 | Rung | Days | The question it answers |
 | :--- | :--- | :--- |
 | **OK** | Day 1 | Does the whole thing exist and run end to end? |
@@ -46,7 +50,8 @@ persistence = a JSON file, funding = every 10 seconds instead of every 8 hours, 
 - [x] `apps/server` — order and deposit routes call the engine directly. No Kafka.
 - [x] `apps/db-writer` — full-state JSON snapshot every 5s.
 - [x] `apps/ws` — `MarketFeed` broadcasts fills, index ticks, funding and liquidations.
-- [x] `apps/web` — one page: token, deposit, order form, depth, positions, live feed.
+- [x] `apps/web` — shell + trade/positions/history: token, deposit, order form, polled depth,
+      positions, live feed. Chart is generated candles (real `/candles` is BETTER).
 
 **Gate passed:** `bun apps/engine/tests/test.engine.ts` — 23/23 including no negative balances.
 End to end over REST: deposit → limit order rests → market order fills → position appears →
@@ -61,30 +66,35 @@ depth updates → funding nets to zero across long and short.
 
 ---
 
-## Rung 2 — GOOD  *(Day 2)*
+## Rung 2 — GOOD  *(Day 2 — done)*
 
 **Goal:** the numbers are right, and tests say so. This is where the deferred test suite lands
 (DECISION-007) and where the known money bugs finally get fixed.
 
-- [ ] Maker margin stays locked on fill; released only on close or cancel.
-- [ ] Taker margin stays locked when a market order opens a position.
-- [ ] `liquidatePosition()` settles from the actual close fills, not the price passed in.
-- [ ] Counterparty (maker) position updates on a liquidation fill.
-- [ ] Partial liquidation fill shrinks the position; it never silently disappears.
-- [ ] BigInt truncation audit — carry `totalNotional` + `totalQuantity` instead of re-dividing
+- [x] Maker margin stays locked on fill; released only on close or cancel.
+- [x] Taker margin stays locked when a market order opens a position.
+- [x] `liquidatePosition()` settles from the actual close fills, not the price passed in.
+- [x] Counterparty (maker) position updates on a liquidation fill.
+- [x] Partial liquidation fill shrinks the position; it never silently disappears.
+- [x] BigInt truncation audit — carry `totalNotional` + `totalQuantity` instead of re-dividing
       for average entry price; re-check liquidation price and maintenance margin.
-- [ ] Real mark price — Binance REST/WS index, median or EMA, fed into `RiskManager`.
-- [ ] Funding on a real schedule with the real premium formula.
-- [ ] Engine test suite in `apps/engine/tests/`: resting depth, partial fills across levels,
+- [x] Real mark price — Binance REST/WS index, median or EMA, fed into `RiskManager`.
+- [x] Funding on a real schedule with the real premium formula.
+- [x] Engine test suite in `apps/engine/tests/`: resting depth, partial fills across levels,
       market order sweeping a thin book, multi-user liquidation in a crash, position flip.
-- [ ] API input validation and sane error codes.
+- [x] API input validation and sane error codes.
 
 ### Needed by the frontend at this rung
-- [ ] Broadcast orderbook depth on the feed so the UI can stop polling `/api/depth`.
-- [ ] Ticker payload: 24h change, current funding rate, next funding time.
-- [ ] Track resting orders per user, and add a cancel route — the UI has no Open Orders
+- [x] Broadcast orderbook depth on the feed so the UI can stop polling `/api/depth`.
+- [x] Ticker payload: 24h change, current funding rate, next funding time.
+- [x] Track resting orders per user, and add a cancel route — the UI has no Open Orders
       panel and no way to release resting margin without a fill.
-- [ ] Reject reasons in error responses specific enough to render (available vs required).
+- [x] Reject reasons in error responses specific enough to render (available vs required).
+
+**Evidence (GOOD):**
+- [x] Tests assert invariants M1–M4, L1, L4, R1–R4 from `INVARIANTS.md`; update their status.
+- [x] Determinism test: run the same seeded command sequence twice, assert identical state (M2).
+- [x] Failure experiment F4 (scam wick) recorded in `FAILURES.md`.
 
 **Gate:** simulate a scam wick on the local book — the risk engine ignores it because the index
 price is stable. Funding debits longs and credits shorts symmetrically.
@@ -100,7 +110,7 @@ change nothing.
 - [ ] Deterministic boot replay reconstructing orderbook + positions from the WAL.
 - [ ] Idempotency keys on orders and fills; a replayed event cannot double-credit.
 - [ ] Kafka replaces the direct calls — `order.commands` keyed by market, `engine.events` out.
-- [ ] `apps/db-writer` consumes `engine.events` → Redis cache + batched Postgres writes (Drizzle).
+- [ ] `apps/db-writer` consumes `engine.events` → Redis cache + batched TimescaleDB writes (Drizzle).
 - [ ] Read routes (`/positions/open`, `/equity/available`) served from Redis.
 - [ ] Reconciliation job: `deposits === available + locked + insurance + fees`, alarm on drift.
 
@@ -108,12 +118,20 @@ change nothing.
 - [ ] Sequence number on every book update, plus a snapshot endpoint to resync against.
 - [ ] Subscribe/unsubscribe protocol with channels instead of one firehose, including
       authenticated private channels for positions, orders and fills.
-- [ ] Candle storage and a `/candles` route. This blocks the whole chart panel, which is the
-      centrepiece of the terminal — do it before any frontend chart work starts.
+- [ ] Candle storage on Timescale hypertables and a `/candles` route. The chart panel already
+      paints generated candles via lightweight-charts; this swap is what makes them real.
 - [ ] Paginated trade history and order history, so the feed is not empty on page load and
       the history table has something to virtualize.
 - [ ] Create more than one market. `createMarket()` already supports it; only `BTC-PERP`
       exists, so there is no watchlist and nothing to switch between.
+
+**Evidence (BETTER):**
+- [ ] Failure experiments F1 (kill -9 + replay), F2 (duplicate delivery), F7 (corrupt WAL tail).
+      Record detection time, recovery time, lost work, duplicate work, state diff.
+- [ ] Invariants D1–D3 and L2 status moved to `stressed`.
+- [ ] Study before building: Kafka partitions/offsets/delivery semantics, Postgres/Timescale
+      WAL/MVCC, hypertables. Build the minimal engine WAL yourself first, then compare with Kafka.
+- [ ] Writeup: "Rebuilding exchange state from a WAL".
 
 **Gate:** `kill -9` the engine mid-trading, restart, and balances and orderbook match exactly.
 
@@ -124,8 +142,14 @@ change nothing.
 **Goal:** fast, and visible. This is the first rung where the matching engine is allowed to
 stop being naive — and only against a benchmark that proves the array sort is the bottleneck.
 
-- [ ] Benchmark first. Record p50/p99 before changing any data structure.
+- [ ] Create `benchmarks/` (repeatable harness, seeded flow) and `profiling/` (flamegraphs).
+- [ ] Benchmark first. Record throughput and p50/p95/p99 in `BENCHMARKS.md` before changing any
+      data structure, at 1x/10x/100x order rates.
+- [ ] Profile (Node CPU profile, event-loop delay, heap snapshot) and name the real bottleneck.
+- [ ] Compare designs: sorted array vs red-black tree vs sorted keys + Map. Pick with numbers.
 - [ ] Replace array-sorted price levels with a sorted structure *if the benchmark justifies it*.
+- [ ] Failure experiments F3 (price updates racing order flow) and F6 (100K-order sweep).
+- [ ] Writeup: "Where the matching engine's latency goes".
 - [ ] Load test: concurrent order flow plus rapid index price updates, hunting margin-check races.
 - [ ] Immutable audit log of every order, fill, and liquidation.
 - [ ] Latency + throughput metrics, alerting on anomalies.
@@ -147,9 +171,25 @@ stop being naive — and only against a benchmark that proves the array sort is 
 - [ ] Move auth to `HttpOnly; Secure; SameSite` cookies with CSRF protection, so the browser
       stops holding a JWT in `localStorage`.
 
+**Evidence (BEST):**
+- [ ] Failure experiment F5 (gap past bankruptcy price, insurance fund drained).
+- [ ] 10x/100x scale analysis: what breaks first, what changes (partitioning per market, etc).
+- [ ] Fill the Definition of Done answers in `PROJECT_ROADMAP.md`.
+
 **Gate:** the full stack runs for an hour with bots trading and no manual intervention.
 
 ---
+
+## Repository layout for the lab
+
+New top-level folders, created when their first rung needs them (not before):
+
+```text
+benchmarks/       repeatable harnesses (AWESOME)
+failure-tests/    fault injection scripts (BETTER)
+profiling/        flamegraphs, CPU/heap profiles (AWESOME)
+docs/experiments/ one short writeup per experiment
+```
 
 ## Parked
 

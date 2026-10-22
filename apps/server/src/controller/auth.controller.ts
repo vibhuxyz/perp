@@ -32,7 +32,7 @@ export const signUp = async (req: Request, res: Response) => {
     return res.status(400).json({
       success: false,
       message: "Validation failed",
-      errors: result.error.format(),
+      errors: result.error.issues.map(i => i.message),
     });
   }
 
@@ -106,7 +106,7 @@ export const signIn = async (req: Request, res: Response) => {
     return res.status(400).json({
       success: false,
       message: "Validation failed",
-      errors: result.error.format(),
+      errors: result.error.issues.map(i => i.message),
     });
   }
 
@@ -200,8 +200,7 @@ export const createMarket = async (req: Request, res: Response) => {
 
   if (!result.success) {
     return res.json({
-      error: result.error.message,
-    });
+      errors: result.error.issues.map(i => i.message),       });
   }
   const { symbol, imageUrl } = result.data;
 

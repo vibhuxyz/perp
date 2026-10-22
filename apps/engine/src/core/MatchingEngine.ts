@@ -23,4 +23,14 @@ export class MatchingEngine {
 
     return book.processOrder(order);
   }
+
+  public cancelOrder(market: Market, orderId: string): Order | undefined {
+    const book = this.orderbooks.get(market);
+
+    if (!book) {
+      return undefined;
+    }
+
+    return book.cancelOrder(orderId);
+  }
 }

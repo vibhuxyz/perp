@@ -7,17 +7,17 @@ export interface FundingPayment {
   amount: bigint;
 }
 
-/**
- * Pays the premium between our book and the index: when the perp trades above the index
- * longs pay shorts, and below, shorts pay longs. It is the spring that ties a perpetual
- * to the underlying, since nothing expires to force convergence.
- *
- * notional * (mark - index) / index reduces to quantity * (mark - index), so there is no
- * division to truncate here beyond the damping factor.
- *
- * Long and short open interest are equal while every fill creates both sides, so payments
- * net to zero. They stop netting once liquidations start skipping the counterparty update.
- */
+export function calculateFundingRate(
+  markPrice: bigint,
+  indexPrice: bigint,
+  scale = 10_000n,
+): bigint {
+  if (indexPrice === 0n) {
+    return 0n;
+  }
+  return ((markPrice - indexPrice) * scale) / indexPrice;
+}
+
 export function settleFunding(
   ledger: Ledger,
   market: Market,
@@ -47,7 +47,11 @@ export function settleFunding(
         continue;
       }
 
-      const user = ledger.usersCollateral.get(position.userId)!;
+      const user = ledger.usersCollateral.get(position.userId);
+      if (!user) {
+        continue;
+      }
+
       user.availableBalance += amount;
       payments.push({ userId: position.userId, amount });
     }

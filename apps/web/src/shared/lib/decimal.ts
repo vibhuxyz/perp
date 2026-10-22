@@ -2,8 +2,6 @@ import Decimal from "decimal.js";
 
 import type { OrderSide } from "@/stores/ui.store";
 
-// Preview arithmetic only. The engine is authoritative for anything that settles —
-// these exist so the order ticket can show a number before the server answers.
 
 export function notional(price: Decimal.Value, quantity: Decimal.Value): Decimal {
   return new Decimal(price).times(quantity);
@@ -30,10 +28,7 @@ export function unrealisedPnl(
   return move.times(quantity);
 }
 
-/**
- * Where the position runs out of margin, mirroring the engine's own formula:
- * a long dies below its entry by margin/quantity, a short above it.
- */
+
 export function liquidationPrice(
   side: OrderSide,
   averagePrice: Decimal.Value,

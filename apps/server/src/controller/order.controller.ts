@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import type { Order } from "engine";
 import { orderSchema } from "../vallidation/order.validate";
-import { exchange, recordFills } from "../exchange";
+import { exchange, recordFills, broadcastDepth, broadcastTicker } from "../exchange";
 
 export const createOrder = async (req: Request, res: Response) => {
   const result = orderSchema.safeParse(req.body);
@@ -41,9 +41,9 @@ export const createOrder = async (req: Request, res: Response) => {
   try {
     const fills = exchange.placeOrder(order);
     recordFills(fills);
+    broadcastDepth(market);
+    broadcastTicker(market);
 
-    // The book mutates order.quantity down as it fills. A market order never rests,
-    // so an unfilled remainder means it was cancelled for want of liquidity.
     const remaining = order.quantity;
     const status = remaining === 0n
       ? "filled"
@@ -56,7 +56,56 @@ export const createOrder = async (req: Request, res: Response) => {
       fills: fills.length,
     });
   } catch (error) {
-    // Insufficient balance and unknown markets both land here.
     return res.status(400).json({ error: (error as Error).message });
   }
+};
+
+export const cancelOrder = async (req: Request, res: Response) => {
+  const userId = req.userId;
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const orderId = req.params.id ?? req.body.orderId;
+  const market = req.body.market ?? "BTC-PERP";
+
+  if (!orderId) {
+    return res.status(400).json({ error: "orderId is required" });
+  }
+
+  const cancelled = exchange.cancelOrder(market, String(userId), orderId);
+  if (!cancelled) {
+    return res.status(404).json({ error: "Order not found or already filled" });
+  }
+
+  broadcastDepth(market);
+  broadcastTicker(market);
+
+  return res.status(200).json({
+    success: true,
+    orderId: cancelled.orderId,
+    status: cancelled.status,
+  });
+};
+
+export const getOpenOrders = async (req: Request, res: Response) => {
+  const userId = req.userId;
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const orders = exchange.getRestingOrders(String(userId));
+  return res.status(200).json(
+    orders.map(o => ({
+      orderId: o.orderId,
+      market: o.market,
+      side: o.side,
+      type: o.type,
+      quantity: o.quantity.toString(),
+      price: o.price.toString(),
+      leverage: o.leverage.toString(),
+      status: o.status,
+      createdAt: o.createdAt.toISOString(),
+    })),
+  );
 };

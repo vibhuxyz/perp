@@ -1,24 +1,52 @@
 export interface PollerOptions {
   startPrice: bigint;
   intervalMs?: number;
-  // Largest move per tick, in the same units as the price.
   stepSize?: bigint;
+  symbol?: string;
+  source?: "binance" | "simulated";
 }
 
-/**
- * Emits an index price on a timer. This is a fake — a random walk around a starting price,
- * not a real external feed — but it is a price the exchange does not control, which is the
- * whole point of using an index for liquidations instead of our own last traded price.
- *
- * Swapping this for a real Binance feed does not change the interface.
- */
+export async function fetchBinancePrice(symbol = "BTCUSDT"): Promise<bigint | null> {
+  try {
+    const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    const data = (await response.json()) as { price?: string };
+    if (!data.price) {
+      return null;
+    }
+    const parsed = Math.round(parseFloat(data.price));
+    return parsed > 0 ? BigInt(parsed) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function startPoller(
-  { startPrice, intervalMs = 1000, stepSize = 50n }: PollerOptions,
+  {
+    startPrice,
+    intervalMs = 1000,
+    stepSize = 50n,
+    symbol = "BTCUSDT",
+    source = "binance",
+  }: PollerOptions,
   onPrice: (price: bigint) => void,
 ): () => void {
   let price = startPrice;
 
-  const timer = setInterval(() => {
+  const tick = async () => {
+    if (source === "binance") {
+      const livePrice = await fetchBinancePrice(symbol);
+      if (livePrice !== null) {
+        price = livePrice;
+        onPrice(price);
+        return;
+      }
+    }
+
     const step = BigInt(Math.floor(Math.random() * Number(stepSize * 2n + 1n))) - stepSize;
     price += step;
 
@@ -27,11 +55,15 @@ export function startPoller(
     }
 
     onPrice(price);
+  };
+
+  const timer = setInterval(() => {
+    void tick();
   }, intervalMs);
 
   return () => clearInterval(timer);
 }
 
 if (import.meta.main) {
-  startPoller({ startPrice: 50_000n }, price => console.log(`BTC-PERP index ${price}`));
+  startPoller({ startPrice: 50_000n }, live => console.log(`BTC-PERP index ${live.toString()}`));
 }

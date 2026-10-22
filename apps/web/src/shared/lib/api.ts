@@ -4,6 +4,7 @@ import { useAccountStore } from "@/stores/account.store";
 
 export class ApiError extends Error {}
 
+
 export async function api<T>(
   path: string,
   schema: ZodType<T>,
@@ -26,3 +27,4 @@ export async function api<T>(
 
   return schema.parse(body);
 }
+

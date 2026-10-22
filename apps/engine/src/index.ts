@@ -7,4 +7,5 @@ export * from "./risk/risk";
 export * from "./risk/calculatePnL";
 export * from "./risk/funding";
 export * from "./risk/config";
+export * from "./wal/index";
 export * from "./types/index";
