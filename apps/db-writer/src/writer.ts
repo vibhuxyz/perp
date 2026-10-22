@@ -16,8 +16,8 @@ export async function recordTrade(fill: Fill): Promise<void> {
       takerUserId: fill.takerUserId,
       createdAt: fill.createdAt,
     });
-  } catch {
-    // db offline or error, suppress to prevent crash
+  } catch (_err) {
+    void _err;
   }
 }
 
@@ -42,8 +42,8 @@ export async function recordCandle(
       close: priceStr,
       volume: qtyStr,
     });
-  } catch {
-    // db offline or error
+  } catch (_err) {
+    void _err;
   }
 }
 
@@ -98,15 +98,15 @@ export async function startDbWriterConsumer(): Promise<() => Promise<void>> {
         }
       },
     });
-  } catch {
-    // kafka offline
+  } catch (_err) {
+    void _err;
   }
 
   return async () => {
     try {
       await consumer.disconnect();
-    } catch {
-      // already disconnected
+    } catch (_err) {
+      void _err;
     }
   };
 }

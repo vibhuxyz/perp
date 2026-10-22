@@ -3,6 +3,9 @@ import type { EngineCommand, WriteAheadLog } from "../wal/index";
 import { Ledger } from "./Ledger";
 import { MatchingEngine } from "./MatchingEngine";
 import { RiskManager } from "../risk/RiskManager";
+import { validatePreTradeRisk } from "../risk/pre-trade";
+import { AuditLog } from "../audit/AuditLog";
+import { MetricsCollector } from "../metrics/MetricsCollector";
 
 export class Exchange {
   public ledger: Ledger;
@@ -11,11 +14,15 @@ export class Exchange {
   public restingOrders: Map<string, Map<string, Order>>;
   public appliedKeys: Set<string>;
   public wal?: WriteAheadLog;
+  public auditLog: AuditLog;
+  public metrics: MetricsCollector;
 
   constructor(wal?: WriteAheadLog) {
+    this.auditLog = new AuditLog();
+    this.metrics = new MetricsCollector();
     this.ledger = new Ledger();
     this.matchingEngine = new MatchingEngine();
-    this.riskManager = new RiskManager(this.ledger, this.matchingEngine);
+    this.riskManager = new RiskManager(this.ledger, this.matchingEngine, this.auditLog);
     this.restingOrders = new Map();
     this.appliedKeys = new Set();
     this.wal = wal;
@@ -28,6 +35,8 @@ export class Exchange {
   public deposit(userId: string, amount: bigint): Collateral {
     const existing = this.ledger.usersCollateral.get(userId);
 
+    this.auditLog.record("COLLATERAL_DEPOSITED", userId, { amount: amount.toString() });
+
     if (existing) {
       existing.availableBalance += amount;
       return existing;
@@ -37,6 +46,17 @@ export class Exchange {
     this.ledger.usersCollateral.set(userId, collateral);
 
     return collateral;
+  }
+
+  public withdraw(userId: string, amount: bigint): boolean {
+    const user = this.ledger.usersCollateral.get(userId);
+    if (!user || user.availableBalance < amount) {
+      return false;
+    }
+
+    user.availableBalance -= amount;
+    this.auditLog.record("COLLATERAL_WITHDRAWN", userId, { amount: amount.toString() });
+    return true;
   }
 
   private trackRestingOrder(order: Order): void {
@@ -51,17 +71,21 @@ export class Exchange {
     userOrders.set(order.orderId, order);
   }
 
-  public placeOrder(order: Order): Fill[] {
-    if (order.type === "LIMIT") {
-      this.ledger.lockMargin(order.userId, (order.price * order.quantity) / order.leverage);
-    }
-
-    const fills = this.matchingEngine.processOrder(order);
-    const makerSide: Side = order.side === "LONG" ? "SHORT" : "LONG";
-
+  private processFills(order: Order, fills: Fill[], makerSide: Side): void {
     for (const fill of fills) {
       if (order.type === "MARKET") {
         this.ledger.lockMargin(fill.takerUserId, (fill.price * fill.quantity) / fill.leverage);
+      } else if (order.type === "LIMIT") {
+        const orderMarginForFill = (order.price * fill.quantity) / order.leverage;
+        const fillMargin = (fill.price * fill.quantity) / fill.leverage;
+        const marginDiff = fillMargin - orderMarginForFill;
+        if (marginDiff !== 0n) {
+          const user = this.ledger.usersCollateral.get(fill.takerUserId);
+          if (user) {
+            user.marginLocked += marginDiff;
+            user.availableBalance -= marginDiff;
+          }
+        }
       }
 
       this.ledger.updatePosition(fill.takerUserId, fill.market, order.side, fill.quantity, fill.price, fill.leverage);
@@ -72,9 +96,50 @@ export class Exchange {
       if (makerOrders && makerOrder && makerOrder.quantity === 0n) {
         makerOrders.delete(fill.makerOrderId);
       }
+
+      this.auditLog.record("ORDER_FILLED", fill.takerUserId, {
+        fillId: fill.fillId,
+        price: fill.price.toString(),
+        quantity: fill.quantity.toString(),
+        makerUserId: fill.makerUserId,
+      }, fill.market);
+    }
+  }
+
+  public placeOrder(order: Order): Fill[] {
+    this.createMarket(order.market);
+    const risk = validatePreTradeRisk(order, this.ledger);
+    if (!risk.valid) {
+      order.status = "rejected";
+      this.auditLog.record("ORDER_REJECTED", order.userId, {
+        orderId: order.orderId,
+        reason: risk.reason ?? "Pre-trade risk check failed",
+      }, order.market);
+      return [];
     }
 
+    const t0 = process.hrtime.bigint();
+
+    if (order.type === "LIMIT") {
+      this.ledger.lockMargin(order.userId, (order.price * order.quantity) / order.leverage);
+    }
+
+    this.auditLog.record("ORDER_PLACED", order.userId, {
+      orderId: order.orderId,
+      side: order.side,
+      type: order.type,
+      quantity: order.quantity.toString(),
+      price: order.price.toString(),
+    }, order.market);
+
+    const fills = this.matchingEngine.processOrder(order);
+    const makerSide: Side = order.side === "LONG" ? "SHORT" : "LONG";
+
+    this.processFills(order, fills, makerSide);
     this.trackRestingOrder(order);
+
+    const t1 = process.hrtime.bigint();
+    this.metrics.recordTiming(t1 - t0);
 
     return fills;
   }
@@ -97,6 +162,8 @@ export class Exchange {
     cancelled.status = "cancelled";
     userOrders?.delete(orderId);
 
+    this.auditLog.record("ORDER_CANCELLED", userId, { orderId, market }, market);
+
     return cancelled;
   }
 
@@ -112,6 +179,8 @@ export class Exchange {
     let result: unknown = null;
     if (command.type === "DEPOSIT") {
       result = this.deposit(command.userId, command.amount);
+    } else if (command.type === "WITHDRAW") {
+      result = this.withdraw(command.userId, command.amount);
     } else if (command.type === "PLACE_ORDER") {
       result = this.placeOrder(command.order);
     } else if (command.type === "CANCEL_ORDER") {

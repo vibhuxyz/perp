@@ -6,21 +6,41 @@ export class PriceLevel {
 
   constructor(price: bigint) {
     this.price = price;
-    this.orders = []
+    this.orders = [];
   }
+}
+
+function binaryInsert(arr: bigint[], val: bigint, ascending: boolean): void {
+  let low = 0;
+  let high = arr.length;
+  while (low < high) {
+    const mid = (low + high) >>> 1;
+    const midVal = arr[mid] ?? 0n;
+    const cmp = ascending ? midVal < val : midVal > val;
+    if (cmp) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  arr.splice(low, 0, val);
 }
 
 export class Orderbook {
   public market: string;
   public bids: Map<bigint, PriceLevel>;
   public asks: Map<bigint, PriceLevel>;
+  public sortedBidPrices: bigint[];
+  public sortedAskPrices: bigint[];
   public lastTradePrice: bigint | null;
 
   constructor(market: string) {
     this.market = market;
     this.bids = new Map();
     this.asks = new Map();
-    this.lastTradePrice = null
+    this.sortedBidPrices = [];
+    this.sortedAskPrices = [];
+    this.lastTradePrice = null;
   }
 
   public processOrder(order: Order): Fill[] {
@@ -35,116 +55,129 @@ export class Orderbook {
     return fills;
   }
 
-  public cancelOrder(orderId: string): Order | undefined {
-    for (const [price, level] of this.bids.entries()) {
-      const index = level.orders.findIndex(o => o.orderId === orderId);
-      if (index !== -1) {
-        const [cancelled] = level.orders.splice(index, 1);
+  public restOrder(order: Order): void {
+    if (order.type !== "LIMIT" || order.quantity === 0n) return;
+    if (order.side === "LONG") {
+      this.restIfUnfilled(order, this.bids, this.sortedBidPrices, false);
+    } else {
+      this.restIfUnfilled(order, this.asks, this.sortedAskPrices, true);
+    }
+  }
+
+  private removeRestingOrder(
+    book: Map<bigint, PriceLevel>,
+    sortedPrices: bigint[],
+    orderId: string,
+  ): Order | undefined {
+    for (const [price, level] of book.entries()) {
+      const idx = level.orders.findIndex(o => o.orderId === orderId);
+      if (idx !== -1) {
+        const [cancelled] = level.orders.splice(idx, 1);
         if (level.orders.length === 0) {
-          this.bids.delete(price);
+          book.delete(price);
+          const pIdx = sortedPrices.indexOf(price);
+          if (pIdx !== -1) sortedPrices.splice(pIdx, 1);
         }
         return cancelled;
       }
     }
-
-    for (const [price, level] of this.asks.entries()) {
-      const index = level.orders.findIndex(o => o.orderId === orderId);
-      if (index !== -1) {
-        const [cancelled] = level.orders.splice(index, 1);
-        if (level.orders.length === 0) {
-          this.asks.delete(price);
-        }
-        return cancelled;
-      }
-    }
-
     return undefined;
   }
 
-  // Shared by matchLongOrder/matchShortOrder: walk the opposing book (best price first,
-  // per sortPrices), filling `order` against resting orders until it's exhausted, a LIMIT
-  // order's price is no longer crossable (per crossesLimit), or the book runs out.
+  public cancelOrder(orderId: string): Order | undefined {
+    const cancelledBid = this.removeRestingOrder(this.bids, this.sortedBidPrices, orderId);
+    if (cancelledBid) return cancelledBid;
+    return this.removeRestingOrder(this.asks, this.sortedAskPrices, orderId);
+  }
+
+  private matchLevel(order: Order, priceLevel: PriceLevel, fills: Fill[]): void {
+    while (priceLevel.orders.length > 0 && order.quantity > 0n) {
+      const counterparty = priceLevel.orders[0];
+      if (!counterparty) break;
+      const tradeSize = order.quantity <= counterparty.quantity ? order.quantity : counterparty.quantity;
+
+      fills.push({
+        fillId: Math.random().toString(),
+        market: this.market,
+        price: counterparty.price,
+        quantity: tradeSize,
+        makerOrderId: counterparty.orderId,
+        makerUserId: counterparty.userId,
+        takerOrderId: order.orderId,
+        takerUserId: order.userId,
+        leverage: order.leverage,
+        fee: 0,
+        createdAt: new Date(),
+      });
+
+      order.quantity -= tradeSize;
+      counterparty.quantity -= tradeSize;
+
+      if (counterparty.quantity === 0n) {
+        priceLevel.orders.shift();
+      }
+    }
+  }
+
   private matchAgainstBook(
     order: Order,
     opposingBook: Map<bigint, PriceLevel>,
-    sortPrices: (prices: bigint[]) => bigint[],
-    crossesLimit: (price: bigint) => boolean,
+    sortedPrices: bigint[],
+    canCross: (bestPrice: bigint) => boolean,
   ): Fill[] {
     const fills: Fill[] = [];
-    const availablePrices = sortPrices(Array.from(opposingBook.keys()));
 
-    for (const price of availablePrices) {
-      if (order.type === "LIMIT" && crossesLimit(price)) {
+    while (sortedPrices.length > 0 && order.quantity > 0n) {
+      const bestPrice = sortedPrices[0];
+      if (bestPrice === undefined) break;
+
+      if (order.type === "LIMIT" && !canCross(bestPrice)) {
         break;
       }
 
-      const priceLevel = opposingBook.get(price)!;
-
-      while (priceLevel.orders.length > 0 && order.quantity > 0n) {
-        const counterparty = priceLevel.orders[0]!;
-        const tradeSize = order.quantity <= counterparty.quantity ? order.quantity : counterparty.quantity;
-
-        fills.push({
-          fillId: Math.random().toString(),
-          market: this.market,
-          price: counterparty.price,
-          quantity: tradeSize,
-          makerOrderId: counterparty.orderId,
-          makerUserId: counterparty.userId,
-          takerOrderId: order.orderId,
-          takerUserId: order.userId,
-          leverage: order.leverage,
-          fee: 0,
-          createdAt: new Date(),
-        });
-
-        order.quantity -= tradeSize;
-        counterparty.quantity -= tradeSize;
-
-        if (counterparty.quantity === 0n) {
-          priceLevel.orders.shift();
-        }
+      const priceLevel = opposingBook.get(bestPrice);
+      if (!priceLevel) {
+        sortedPrices.shift();
+        continue;
       }
 
+      this.matchLevel(order, priceLevel, fills);
+
       if (priceLevel.orders.length === 0) {
-        opposingBook.delete(price);
+        opposingBook.delete(bestPrice);
+        sortedPrices.shift();
       }
     }
 
     return fills;
   }
 
-  // Rests an unfilled LIMIT order on its own side of the book.
-  private restIfUnfilled(order: Order, restingBook: Map<bigint, PriceLevel>): void {
-    if (order.type === "LIMIT" && order.quantity > 0n) {
-      let level = restingBook.get(order.price);
-      if (!level) {
-        level = new PriceLevel(order.price);
-        restingBook.set(order.price, level);
-      }
-      level.orders.push(order);
+  private restIfUnfilled(
+    order: Order,
+    restingBook: Map<bigint, PriceLevel>,
+    sortedPrices: bigint[],
+    ascending: boolean,
+  ): void {
+    if (order.type !== "LIMIT" || order.quantity === 0n) return;
+
+    let level = restingBook.get(order.price);
+    if (!level) {
+      level = new PriceLevel(order.price);
+      restingBook.set(order.price, level);
+      binaryInsert(sortedPrices, order.price, ascending);
     }
+    level.orders.push(order);
   }
 
   private matchLongOrder(order: Order): Fill[] {
-    const fills = this.matchAgainstBook(
-      order,
-      this.asks,
-      prices => prices.sort((a, b) => Number(a - b)),
-      price => price > order.price,
-    );
-    this.restIfUnfilled(order, this.bids);
+    const fills = this.matchAgainstBook(order, this.asks, this.sortedAskPrices, p => p <= order.price);
+    this.restIfUnfilled(order, this.bids, this.sortedBidPrices, false);
     return fills;
   }
 
   private matchShortOrder(order: Order): Fill[] {
-    const fills = this.matchAgainstBook(
-      order,
-      this.bids,
-      prices => prices.sort((a, b) => Number(b - a)),
-      price => price < order.price,
-    );
-    this.restIfUnfilled(order, this.asks);
+    const fills = this.matchAgainstBook(order, this.bids, this.sortedBidPrices, p => p >= order.price);
+    this.restIfUnfilled(order, this.asks, this.sortedAskPrices, true);
     return fills;
   }
 }

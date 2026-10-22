@@ -3,10 +3,14 @@ import type { Collateral, Position, Side, Market } from "../types/index";
 export class Ledger {
   public usersCollateral: Map<string, Collateral>;
   public userPositions: Map<string, Position[]>;
+  public insuranceFund: bigint;
+  public feePool: bigint;
 
   constructor() {
     this.usersCollateral = new Map();
     this.userPositions = new Map();
+    this.insuranceFund = 0n;
+    this.feePool = 0n;
   }
 
   public lockMargin(userId: string, amount: bigint): void {
@@ -39,6 +43,25 @@ export class Ledger {
     user.availableBalance += amount;
   }
 
+  public depositInsurance(amount: bigint): void {
+    this.insuranceFund += amount;
+  }
+
+  public absorbDeficit(deficit: bigint): { absorbed: bigint; uncovered: bigint } {
+    if (this.insuranceFund >= deficit) {
+      this.insuranceFund -= deficit;
+      return { absorbed: deficit, uncovered: 0n };
+    }
+    const absorbed = this.insuranceFund;
+    const uncovered = deficit - this.insuranceFund;
+    this.insuranceFund = 0n;
+    return { absorbed, uncovered };
+  }
+
+  public collectFee(amount: bigint): void {
+    this.feePool += amount;
+  }
+
   public updatePosition(
     userId: string,
     market: Market,
@@ -53,6 +76,10 @@ export class Ledger {
     const fillNotional = fillPrice * fillQuantity;
 
     if (!existing) {
+      const bankruptcyPrice = side === "LONG"
+        ? (fillNotional - margin) / fillQuantity
+        : (fillNotional + margin) / fillQuantity;
+
       positions.push({
         userId,
         market,
@@ -61,9 +88,8 @@ export class Ledger {
         averagePrice: fillPrice,
         margin,
         totalNotional: fillNotional,
-        liquidationPrice: side === "LONG"
-          ? (fillNotional - margin) / fillQuantity
-          : (fillNotional + margin) / fillQuantity,
+        liquidationPrice: bankruptcyPrice,
+        bankruptcyPrice,
       });
 
       this.userPositions.set(userId, positions);
@@ -78,9 +104,11 @@ export class Ledger {
     existing.quantity = newQuantity;
     existing.averagePrice = newTotalNotional / newQuantity;
     existing.margin += margin;
-    existing.liquidationPrice = existing.side === "LONG"
+    const bkPrice = existing.side === "LONG"
       ? (newTotalNotional - existing.margin) / newQuantity
       : (newTotalNotional + existing.margin) / newQuantity;
+    existing.liquidationPrice = bkPrice;
+    existing.bankruptcyPrice = bkPrice;
   }
 
   public getPosition(userId: string, market: Market): Position | undefined {

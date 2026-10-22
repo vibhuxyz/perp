@@ -11,6 +11,14 @@ export type EngineCommand =
     }
   | {
       id: string;
+      type: "WITHDRAW";
+      idempotencyKey?: string;
+      userId: string;
+      amount: bigint;
+      timestamp: number;
+    }
+  | {
+      id: string;
       type: "PLACE_ORDER";
       idempotencyKey?: string;
       order: Order;

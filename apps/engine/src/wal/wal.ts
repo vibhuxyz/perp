@@ -2,6 +2,32 @@ import fs from "fs";
 import type { EngineCommand } from "./types";
 import type { Exchange } from "../core/Exchange";
 
+function parseWalLine(line: string): EngineCommand {
+  return JSON.parse(line, (_key, val) => {
+    if (typeof val === "string" && /^-?\d+n$/.test(val)) {
+      return BigInt(val.slice(0, -1));
+    }
+    return val;
+  }) as EngineCommand;
+}
+
+function applyReplayCommand(cmd: EngineCommand, exchange: Exchange): void {
+  if (cmd.idempotencyKey) {
+    exchange.appliedKeys.add(cmd.idempotencyKey);
+  }
+
+  if (cmd.type === "DEPOSIT") {
+    exchange.deposit(cmd.userId, cmd.amount);
+  } else if (cmd.type === "WITHDRAW") {
+    exchange.withdraw(cmd.userId, cmd.amount);
+  } else if (cmd.type === "PLACE_ORDER") {
+    cmd.order.createdAt = new Date(cmd.order.createdAt);
+    exchange.placeOrder(cmd.order);
+  } else if (cmd.type === "CANCEL_ORDER") {
+    exchange.cancelOrder(cmd.market, cmd.userId, cmd.orderId);
+  }
+}
+
 export class WriteAheadLog {
   private filePath: string;
 
@@ -16,7 +42,7 @@ export class WriteAheadLog {
     fs.appendFileSync(this.filePath, `${payload}\n`);
   }
 
-  public static replay(filePath: string, exchange: Exchange): number {
+  public static replay(filePath: string, exchange: Exchange, startFromIndex = 0): number {
     if (!fs.existsSync(filePath)) {
       return 0;
     }
@@ -24,6 +50,7 @@ export class WriteAheadLog {
     const content = fs.readFileSync(filePath, "utf-8");
     const lines = content.split("\n");
     let count = 0;
+    let index = 0;
 
     for (const line of lines) {
       const trimmed = line.trim();
@@ -31,25 +58,16 @@ export class WriteAheadLog {
         continue;
       }
 
-      try {
-        const parsed = JSON.parse(trimmed, (_key, val) => {
-          if (typeof val === "string" && /^-?\d+n$/.test(val)) {
-            return BigInt(val.slice(0, -1));
-          }
-          return val;
-        }) as EngineCommand;
+      if (index < startFromIndex) {
+        index++;
+        continue;
+      }
 
-        if (parsed.type === "DEPOSIT") {
-          exchange.deposit(parsed.userId, parsed.amount);
-          count++;
-        } else if (parsed.type === "PLACE_ORDER") {
-          parsed.order.createdAt = new Date(parsed.order.createdAt);
-          exchange.placeOrder(parsed.order);
-          count++;
-        } else if (parsed.type === "CANCEL_ORDER") {
-          exchange.cancelOrder(parsed.market, parsed.userId, parsed.orderId);
-          count++;
-        }
+      try {
+        const parsed = parseWalLine(trimmed);
+        applyReplayCommand(parsed, exchange);
+        count++;
+        index++;
       } catch {
         break;
       }

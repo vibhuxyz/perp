@@ -1,15 +1,19 @@
 import type { Order, Position, Market, Side } from "../types/index";
 import type { Ledger } from "../core/Ledger";
 import type { MatchingEngine } from "../core/MatchingEngine";
+import type { AuditLog } from "../audit/AuditLog";
 import { isLiquidatable } from "./risk";
+import { executeADL } from "./adl";
 
 export class RiskManager {
   private ledger: Ledger;
   private matchingEngine: MatchingEngine;
+  private auditLog?: AuditLog;
 
-  constructor(ledger: Ledger, matchingEngine: MatchingEngine) {
+  constructor(ledger: Ledger, matchingEngine: MatchingEngine, auditLog?: AuditLog) {
     this.ledger = ledger;
     this.matchingEngine = matchingEngine;
+    this.auditLog = auditLog;
   }
 
   public checkLiquidations(market: Market, currentIndexPrice: bigint): Position[] {
@@ -24,13 +28,34 @@ export class RiskManager {
     }
 
     for (const position of breaching) {
-      this.liquidatePosition(position);
+      this.liquidatePosition(position, currentIndexPrice);
     }
 
     return breaching;
   }
 
-  public liquidatePosition(position: Position): void {
+  private handleDeficit(
+    userId: string,
+    market: Market,
+    liquidatedSide: Side,
+    fillQuantity: bigint,
+    fillPrice: bigint,
+    indexPrice?: bigint,
+  ): void {
+    const user = this.ledger.usersCollateral.get(userId);
+    if (!user || user.availableBalance >= 0n) return;
+
+    const deficit = -user.availableBalance;
+    user.availableBalance = 0n;
+    const { uncovered } = this.ledger.absorbDeficit(deficit);
+
+    if (uncovered > 0n && indexPrice !== undefined) {
+      const opposingSide: Side = liquidatedSide === "LONG" ? "SHORT" : "LONG";
+      executeADL(this.ledger, market, opposingSide, fillQuantity, fillPrice, indexPrice);
+    }
+  }
+
+  public liquidatePosition(position: Position, indexPrice?: bigint): void {
     const closingSide: Side = position.side === "LONG" ? "SHORT" : "LONG";
     const leverage = position.margin > 0n
       ? (position.averagePrice * position.quantity) / position.margin
@@ -50,10 +75,6 @@ export class RiskManager {
     };
 
     const fills = this.matchingEngine.processOrder(closingOrder);
-    if (fills.length === 0) {
-      return;
-    }
-
     const totalQuantity = position.quantity;
     const totalMargin = position.margin;
     let remainingQuantity = totalQuantity;
@@ -81,7 +102,17 @@ export class RiskManager {
       remainingMargin -= marginFreed;
 
       this.ledger.settlePnL(position.userId, pnl, marginFreed);
+
+      this.handleDeficit(position.userId, position.market, position.side, fill.quantity, fill.price, indexPrice);
     }
+
+    this.auditLog?.record("POSITION_LIQUIDATED", position.userId, {
+      market: position.market,
+      side: position.side,
+      totalQuantity: totalQuantity.toString(),
+      remainingQuantity: remainingQuantity.toString(),
+      fillsCount: fills.length,
+    }, position.market);
 
     if (remainingQuantity === 0n) {
       this.ledger.closePosition(position.userId, position.market);

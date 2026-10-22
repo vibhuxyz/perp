@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import type { Collateral, Fill, Position } from "engine";
+import { startDbWriterWorker } from "./writer";
 
 export * from "./writer";
 
@@ -21,4 +22,8 @@ export async function snapshot(state: ExchangeState, fills: Fill[], path: string
   );
 
   await writeFile(path, json);
+}
+
+if (import.meta.main) {
+  startDbWriterWorker().catch(console.error);
 }

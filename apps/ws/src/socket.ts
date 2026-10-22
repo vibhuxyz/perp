@@ -36,8 +36,8 @@ export class MarketFeed {
           } else if (msg.action === "unsubscribe" && msg.channel && subs) {
             subs.delete(msg.channel);
           }
-        } catch {
-          // invalid json, ignore
+        } catch (_err) {
+          void _err;
         }
       });
 
@@ -52,8 +52,8 @@ export class MarketFeed {
     for (const client of this.clients) {
       try {
         client.close();
-      } catch {
-        // already closed
+      } catch (_err) {
+        void _err;
       }
     }
     this.clients.clear();

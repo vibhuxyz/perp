@@ -1,8 +1,8 @@
-
-export type OrderStatus = "resting" | "filled" | "cancelled";
+export type OrderStatus = "resting" | "filled" | "cancelled" | "rejected";
 export type Market = string;
 export type Side = "LONG" | "SHORT";
-export type OrderType = "LIMIT" | "MARKET"
+export type OrderType = "LIMIT" | "MARKET";
+export type MarginMode = "ISOLATED" | "CROSS";
 
 export interface Order {
   userId: string;
@@ -15,6 +15,7 @@ export interface Order {
   leverage: bigint;
   status: OrderStatus;
   createdAt: Date;
+  marginMode?: MarginMode;
 }
 
 export interface Fill {
@@ -40,10 +41,13 @@ export interface Position {
   liquidationPrice: bigint;
   averagePrice: bigint;
   totalNotional?: bigint;
+  bankruptcyPrice?: bigint;
+  marginMode?: MarginMode;
 }
 
 export interface Collateral {
   userId: string;
   availableBalance: bigint;
   marginLocked: bigint;
+  marginMode?: MarginMode;
 }
