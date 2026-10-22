@@ -74,3 +74,26 @@ export const closePosition = (market: string) =>
     method: "POST",
     body: JSON.stringify({ market }),
   });
+
+const openOrderSchema = z.object({
+  orderId: z.string(),
+  market: z.string(),
+  side: z.enum(["LONG", "SHORT"]),
+  type: z.enum(["LIMIT", "MARKET"]),
+  quantity: z.string(),
+  price: z.string(),
+  leverage: z.string(),
+  status: z.string(),
+  createdAt: z.string(),
+});
+
+export type OpenOrder = z.infer<typeof openOrderSchema>;
+
+export const fetchOpenOrders = () =>
+  api("/api/orders/open", z.array(openOrderSchema));
+
+export const cancelOrderApi = (orderId: string, market = "BTC-PERP") =>
+  api(`/api/orders/${orderId}/cancel`, z.object({ success: z.boolean(), orderId: z.string() }), {
+    method: "POST",
+    body: JSON.stringify({ market, orderId }),
+  });

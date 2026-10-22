@@ -1,3 +1,4 @@
+import { useMarketStore } from '@/stores/market.store';
 import { formatPrice } from '@/shared/lib/formatters';
 import type { HoverData, CandlestickData } from '../chartData';
 import { LegendHover } from './LegendHover';
@@ -16,11 +17,12 @@ export function ChartLegend({
   effectivePrice: number;
   latestCandle: CandlestickData | null;
 }) {
+  const currentMarket = useMarketStore(s => s.currentMarket);
   return (
     <div className="flex items-center gap-4 px-3 py-1.5 text-[11px] font-mono border-b border-border-subtle/50 bg-[#0C1018] text-text-secondary tabular-nums overflow-x-auto scrollbar-none">
       <div className="flex items-center gap-1.5 text-profit shrink-0">
         <span className="h-1.5 w-1.5 rounded-full bg-profit animate-pulse" />
-        <span className="font-bold">BTC-PERP</span>
+        <span className="font-bold">{currentMarket}</span>
       </div>
 
       {hoverData ? (

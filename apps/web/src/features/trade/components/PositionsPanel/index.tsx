@@ -9,6 +9,7 @@ import { TabsHeader } from './TabsHeader';
 import { TABS } from './tabs';
 import { SignedOutState } from './SignedOutState';
 import { PositionsTable } from './PositionsTable';
+import { OpenOrdersTable } from './OpenOrdersTable';
 import { NoPositionsState, OtherTabEmptyState } from './EmptyStates';
 
 export function PositionsPanel() {
@@ -69,6 +70,8 @@ export function PositionsPanel() {
               ) : (
                 <NoPositionsState isLoading={isLoading} />
               )
+            ) : activeTab === 'orders' ? (
+              <OpenOrdersTable token={token} />
             ) : (
               <OtherTabEmptyState tabLabel={activeTabLabel} onViewHistory={() => navigate('/history')} />
             )}

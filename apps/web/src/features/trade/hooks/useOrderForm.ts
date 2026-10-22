@@ -1,11 +1,13 @@
+import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 
-import { MARKET } from "@/app/config";
 import { placeOrder } from "../api/tradeApi";
 import { initialMargin, liquidationPrice } from "@/shared/lib/decimal";
+import { useOptimisticOrders } from "./useOptimisticOrders";
+import type { OptimisticOrderStatus } from "@/stores/optimistic-orders.store";
 
 const positiveNumber = z.string().regex(/^\d+(\.\d+)?$/, "must be a positive number");
 
@@ -32,21 +34,31 @@ const DEFAULT_VALUES: OrderFormValues = {
   leverage: "10",
 };
 
-export function useOrderForm(indexPrice: string | null) {
+function parseOrderPayload(v: OrderFormValues, market: string, indexPrice: string | null) {
+  const quantity = String(Math.max(1, Math.round(parseFloat(v.quantity) || 1)));
+  const leverage = String(Math.max(1, Math.round(parseFloat(v.leverage) || 1)));
+  const price = v.type === "LIMIT" ? String(Math.round(parseFloat(v.price || indexPrice || "50000"))) : undefined;
+  return {
+    market,
+    side: v.side,
+    type: v.type,
+    quantity,
+    leverage,
+    ...(price ? { price } : {}),
+  };
+}
+
+export function useOrderForm(indexPrice: string | null, market = "BTC-PERP") {
   const queryClient = useQueryClient();
+  const { submitOptimisticOrder, orders } = useOptimisticOrders();
+
+  const [optimisticStatus, setOptimisticStatus] = useState<OptimisticOrderStatus | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(orderSchema),
     defaultValues: DEFAULT_VALUES,
-  });
-
-  const mutation = useMutation({
-    mutationFn: placeOrder,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["positions"] });
-      queryClient.invalidateQueries({ queryKey: ["equity"] });
-      queryClient.invalidateQueries({ queryKey: ["depth"] });
-    },
   });
 
   const watched = useWatch<OrderFormValues>({ control: form.control });
@@ -62,23 +74,47 @@ export function useOrderForm(indexPrice: string | null) {
     ? liquidationPrice(side, previewPrice, margin, quantity)
     : null;
 
-  const submitOrder = form.handleSubmit(v =>
-    mutation.mutate({
-      market: MARKET,
-      side: v.side,
-      type: v.type,
-      quantity: String(Math.max(1, Math.round(parseFloat(v.quantity) || 1))),
-      leverage: String(Math.max(1, Math.round(parseFloat(v.leverage) || 1))),
-      ...(v.type === "LIMIT" ? { price: String(Math.round(parseFloat(v.price || indexPrice || "50000"))) } : {}),
-    }),
-  );
+  const submitOrder = form.handleSubmit(async v => {
+    setLastError(null);
+    setIsSubmitting(true);
+    setOptimisticStatus("Submitting");
+
+    const payload = parseOrderPayload(v, market, indexPrice);
+    try {
+      await submitOptimisticOrder(
+        {
+          market,
+          side: v.side,
+          type: v.type,
+          quantity: payload.quantity,
+          price: payload.price ?? indexPrice ?? "0",
+          leverage: payload.leverage,
+        },
+        () => placeOrder(payload),
+      );
+
+      setOptimisticStatus("Accepted");
+      queryClient.invalidateQueries({ queryKey: ["positions"] });
+      queryClient.invalidateQueries({ queryKey: ["equity"] });
+      queryClient.invalidateQueries({ queryKey: ["depth"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    } catch (err) {
+      setLastError(err instanceof Error ? err.message : "Order failed");
+      setOptimisticStatus("Rejected");
+    } finally {
+      setIsSubmitting(false);
+    }
+  });
 
   return {
     form,
-    mutation,
     values,
     margin,
     liquidation,
     submitOrder,
+    isSubmitting,
+    optimisticStatus,
+    lastError,
+    optimisticOrders: orders,
   };
 }

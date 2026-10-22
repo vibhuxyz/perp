@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useOrderForm } from '../../hooks/useOrderForm';
 import { useAccountStore } from '@/stores/account.store';
-import { useMarketStore, selectBestBid, selectBestAsk } from '@/stores/market.store';
+import { useMarketStore, selectBestBid, selectBestAsk, MARKET_DETAILS } from '@/stores/market.store';
 import { fetchEquity } from '../../api/tradeApi';
 import { AuthModal } from '@/features/auth/AuthModal';
-import { AlertTriangle } from 'lucide-react';
 import Decimal from 'decimal.js';
 import { SideToggle } from './SideToggle';
 import { OrderTypeTabs } from './OrderTypeTabs';
@@ -18,6 +17,7 @@ import { LEVERAGE_STOPS } from '../../constants';
 import { OrderSummary } from './OrderSummary';
 import { LiquidationWarning } from './LiquidationWarning';
 import { SubmitButton } from './SubmitButton';
+import { OptimisticStatusBanner } from './OptimisticStatusBanner';
 import { useOrderTicketMath } from './useOrderTicketMath';
 
 function computeEffectivePrice(
@@ -33,10 +33,12 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [orderTypeTab, setOrderTypeTab] = useState<'LIMIT' | 'MARKET' | 'STOP'>('LIMIT');
   const [percent, setPercent] = useState<number>(0);
-  const [leverageStopIndex, setLeverageStopIndex] = useState<number>(2); // 10x default
+  const [leverageStopIndex, setLeverageStopIndex] = useState<number>(2);
 
   const token = useAccountStore(s => s.token);
   const isAuthenticated = Boolean(token);
+  const currentMarket = useMarketStore(s => s.currentMarket);
+  const marketMeta = MARKET_DETAILS[currentMarket];
 
   const lastTradePrice = useMarketStore(s => s.lastTradePrice);
   const bestBid = useMarketStore(selectBestBid);
@@ -49,9 +51,17 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
     retry: false,
   });
 
-  const { form, mutation, values, margin, liquidation, submitOrder } = useOrderForm(indexPrice);
+  const {
+    form,
+    values,
+    margin,
+    liquidation,
+    submitOrder,
+    isSubmitting,
+    optimisticStatus,
+    lastError,
+  } = useOrderForm(indexPrice, currentMarket);
 
-  // Sync initial price if indexPrice arrives and price isn't set yet
   useEffect(() => {
     if (indexPrice && !values.price) {
       form.setValue('price', indexPrice);
@@ -60,7 +70,6 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
 
   const isLong = values.side === 'LONG';
   const effectivePrice = computeEffectivePrice(values, indexPrice);
-
   const currentLeverage = LEVERAGE_STOPS[leverageStopIndex] ?? 10;
   const displayQuantity = values.quantity || '0';
 
@@ -90,14 +99,12 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
     const available = equity?.availableBalance ? parseFloat(equity.availableBalance) : 10000;
     const priceNum = parseFloat(effectivePrice) || (indexPrice ? parseFloat(indexPrice) : 0);
     if (priceNum <= 0) return;
-
     if (pct === 0) {
       form.setValue('quantity', '0');
       return;
     }
-
-    const maxBtc = (available * currentLeverage) / priceNum;
-    const calculated = (maxBtc * (pct / 100)).toFixed(2);
+    const maxQty = (available * currentLeverage) / priceNum;
+    const calculated = (maxQty * (pct / 100)).toFixed(2);
     form.setValue('quantity', parseFloat(calculated) > 0 ? calculated : '0');
   };
 
@@ -105,13 +112,11 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
     const cleanVal = val.replace(/,/g, '');
     const priceNum = parseFloat(effectivePrice) || (indexPrice ? parseFloat(indexPrice) : 0);
     if (priceNum <= 0) return;
-
     const numVal = parseFloat(cleanVal);
     if (isNaN(numVal) || numVal <= 0) {
       form.setValue('quantity', '0');
     } else {
-      const calculatedQty = (numVal / priceNum).toFixed(4);
-      form.setValue('quantity', calculatedQty);
+      form.setValue('quantity', (numVal / priceNum).toFixed(4));
     }
   };
 
@@ -131,37 +136,20 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
   const handleLeverageChange = (stopIdx: number) => {
     const clamped = Math.max(0, Math.min(LEVERAGE_STOPS.length - 1, stopIdx));
     setLeverageStopIndex(clamped);
-    const lev = LEVERAGE_STOPS[clamped] ?? 10;
-    form.setValue('leverage', String(lev));
-  };
-
-  const handleResetLeverage = () => {
-    handleLeverageChange(2); // reset to 10x
-  };
-
-  const handleSubmitClick = () => {
-    if (!isAuthenticated) {
-      setIsAuthOpen(true);
-    } else {
-      submitOrder();
-    }
+    form.setValue('leverage', String(LEVERAGE_STOPS[clamped] ?? 10));
   };
 
   return (
     <>
       <div className="flex flex-col h-full bg-[#0A0E17] rounded-xl border border-[#162032] p-3.5 gap-3.5 select-none overflow-y-auto scrollbar-thin">
         <SideToggle isLong={isLong} onSelect={side => form.setValue('side', side)} />
-
         <OrderTypeTabs
           selected={orderTypeTab}
           onSelect={type => {
             setOrderTypeTab(type);
-            if (type === 'LIMIT' || type === 'MARKET') {
-              form.setValue('type', type);
-            }
+            if (type === 'LIMIT' || type === 'MARKET') form.setValue('type', type);
           }}
         />
-
         <PriceInput
           register={form.register}
           isMarketOrder={orderTypeTab === 'MARKET'}
@@ -169,19 +157,14 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
           onMidClick={handleMidClick}
           onBboClick={handleBboClick}
         />
-
         <QuantityInput register={form.register} />
-
         <PercentSlider percent={percent} onChange={handlePercentChange} />
-
         <OrderValueInput value={orderValueUSDT} onChange={handleOrderValueInput} />
-
         <LeverageSlider
           stopIndex={leverageStopIndex}
           onChangeIndex={handleLeverageChange}
-          onReset={handleResetLeverage}
+          onReset={() => handleLeverageChange(2)}
         />
-
         <OrderSummary
           requiredMargin={requiredMargin}
           requiredMarginNum={requiredMarginNum}
@@ -192,33 +175,20 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
           isLiqClose={isLiqClose}
           estFee={estFee}
         />
-
         {isLiqClose && liqDistancePct !== null && (
           <LiquidationWarning estLiqPrice={estLiqPrice} liqDistancePct={liqDistancePct} />
         )}
-
-        {mutation.error && (
-          <div className="flex items-start gap-2 rounded-lg border border-loss/30 bg-loss/10 p-2.5 text-xs text-loss">
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>Order rejected: {mutation.error.message}</span>
-          </div>
-        )}
-
-        {mutation.data && (
-          <div className="rounded-lg border border-[#00DA8E]/30 bg-[#00DA8E]/10 p-2.5 text-xs text-[#00DA8E]">
-            Order {mutation.data.status} · Filled {mutation.data.filledQuantity} BTC
-          </div>
-        )}
-
+        <OptimisticStatusBanner status={optimisticStatus} symbol={marketMeta.symbol} error={lastError} />
         <SubmitButton
           isAuthenticated={isAuthenticated}
           isLong={isLong}
-          isPending={mutation.isPending}
+          isPending={isSubmitting}
+          optimisticStatus={optimisticStatus}
           displayQuantity={displayQuantity}
-          onClick={handleSubmitClick}
+          baseAsset={marketMeta.baseAsset}
+          onClick={() => (isAuthenticated ? submitOrder() : setIsAuthOpen(true))}
         />
       </div>
-
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
     </>
   );

@@ -1,5 +1,41 @@
 import { create } from "zustand";
 
+export type SupportedMarket = "BTC-PERP" | "ETH-PERP" | "SOL-PERP";
+
+export interface MarketMeta {
+  symbol: SupportedMarket;
+  baseAsset: string;
+  name: string;
+  color: string;
+  defaultPrice: string;
+}
+
+export const MARKET_DETAILS: Record<SupportedMarket, MarketMeta> = {
+  "BTC-PERP": {
+    symbol: "BTC-PERP",
+    baseAsset: "BTC",
+    name: "Bitcoin Perpetual",
+    color: "#F7931A",
+    defaultPrice: "50000",
+  },
+  "ETH-PERP": {
+    symbol: "ETH-PERP",
+    baseAsset: "ETH",
+    name: "Ethereum Perpetual",
+    color: "#627EEA",
+    defaultPrice: "3000",
+  },
+  "SOL-PERP": {
+    symbol: "SOL-PERP",
+    baseAsset: "SOL",
+    name: "Solana Perpetual",
+    color: "#14F195",
+    defaultPrice: "150",
+  },
+};
+
+export const SUPPORTED_MARKETS: SupportedMarket[] = ["BTC-PERP", "ETH-PERP", "SOL-PERP"];
+
 export interface Level {
   price: string;
   quantity: string;
@@ -14,6 +50,7 @@ export interface Trade {
 }
 
 interface MarketState {
+  currentMarket: SupportedMarket;
   bids: Level[];
   asks: Level[];
   indexPrice: string | null;
@@ -21,6 +58,7 @@ interface MarketState {
   high24h: string | null;
   low24h: string | null;
   trades: Trade[];
+  setMarket: (market: SupportedMarket) => void;
   setBook: (bids: Level[], asks: Level[]) => void;
   setIndexPrice: (price: string) => void;
   setLastTradePrice: (price: string) => void;
@@ -28,6 +66,7 @@ interface MarketState {
 }
 
 export const useMarketStore = create<MarketState>((set, get) => ({
+  currentMarket: "BTC-PERP",
   bids: [],
   asks: [],
   indexPrice: null,
@@ -35,6 +74,17 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   high24h: null,
   low24h: null,
   trades: [],
+  setMarket: currentMarket =>
+    set({
+      currentMarket,
+      bids: [],
+      asks: [],
+      trades: [],
+      indexPrice: null,
+      lastTradePrice: null,
+      high24h: null,
+      low24h: null,
+    }),
   setBook: (bids, asks) => set({ bids, asks }),
   setIndexPrice: indexPrice => set({ indexPrice }),
   setLastTradePrice: lastTradePrice => {

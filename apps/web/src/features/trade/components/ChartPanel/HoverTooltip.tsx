@@ -1,7 +1,9 @@
+import { useMarketStore } from '@/stores/market.store';
 import { formatPrice } from '@/shared/lib/formatters';
 import type { HoverData } from '../chartData';
 
 export function HoverTooltip({ hoverData }: { hoverData: HoverData }) {
+  const currentMarket = useMarketStore(s => s.currentMarket);
   const sign = (n: number) => (n >= 0 ? '+' : '');
   const closeColor = hoverData.isUp ? 'text-profit' : 'text-loss';
 
@@ -13,7 +15,7 @@ export function HoverTooltip({ hoverData }: { hoverData: HoverData }) {
       <div className="flex items-center justify-between text-[11px] text-text-secondary border-b border-border-subtle pb-1.5 font-sans">
         <div className="flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-profit" />
-          <span className="font-bold text-white">BTC-PERP</span>
+          <span className="font-bold text-white">{currentMarket}</span>
         </div>
         <span className="text-[10px] font-mono">{hoverData.time}</span>
       </div>
