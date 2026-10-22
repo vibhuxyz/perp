@@ -43,7 +43,7 @@ function handleFillExecution(
   currentMarket: string,
   setLastTradePrice: (p: string) => void,
   addTrade: (t: { id: string; price: string; size: string; time: string; isUp: boolean }) => void,
-  markFilled: (id: string) => void,
+  recordOrderFill: (id: string, qty: string) => void,
   queryClient: QueryClient,
 ) {
   if (event.type !== "fill" || !event.fill) return;
@@ -60,8 +60,8 @@ function handleFillExecution(
     });
   }
 
-  if (event.fill.takerOrderId) markFilled(event.fill.takerOrderId);
-  if (event.fill.makerOrderId) markFilled(event.fill.makerOrderId);
+  if (event.fill.takerOrderId) recordOrderFill(event.fill.takerOrderId, event.fill.quantity);
+  if (event.fill.makerOrderId) recordOrderFill(event.fill.makerOrderId, event.fill.quantity);
 
   queryClient.invalidateQueries({ queryKey: ["positions"] });
   queryClient.invalidateQueries({ queryKey: ["equity"] });
@@ -76,20 +76,20 @@ export function useMarketFeed() {
   const setIndexPrice = useMarketStore(s => s.setIndexPrice);
   const setLastTradePrice = useMarketStore(s => s.setLastTradePrice);
   const addTrade = useMarketStore(s => s.addTrade);
-  const markFilled = useOptimisticOrdersStore(s => s.markFilled);
+  const recordOrderFill = useOptimisticOrdersStore(s => s.recordOrderFill);
 
   const onMessage = useCallback(
     (data: unknown) => {
       const event = data as FeedEvent;
       handlePriceAndDepth(event, currentMarket, setIndexPrice, setBook);
-      handleFillExecution(event, currentMarket, setLastTradePrice, addTrade, markFilled, queryClient);
+      handleFillExecution(event, currentMarket, setLastTradePrice, addTrade, recordOrderFill, queryClient);
 
       if (event.type === "funding" || event.type === "liquidation") {
         queryClient.invalidateQueries({ queryKey: ["positions"] });
         queryClient.invalidateQueries({ queryKey: ["equity"] });
       }
     },
-    [currentMarket, setBook, setIndexPrice, setLastTradePrice, addTrade, markFilled, queryClient],
+    [currentMarket, setBook, setIndexPrice, setLastTradePrice, addTrade, recordOrderFill, queryClient],
   );
 
   useWebSocket(config.wsUrl, onMessage);

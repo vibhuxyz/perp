@@ -46,15 +46,25 @@ export const createOrder = async (req: Request, res: Response) => {
     broadcastDepth(market);
     broadcastTicker(market);
 
+    const initialQty = parsedQuantity;
     const remaining = order.quantity;
-    const status = remaining === 0n
+    const filledQuantity = (initialQty - remaining).toString();
+    const status = order.status === "rejected"
+      ? "rejected"
+      : remaining === 0n
       ? "filled"
-      : order.type === "MARKET" ? "cancelled" : "resting";
+      : filledQuantity !== "0"
+      ? "partially_filled"
+      : order.type === "MARKET"
+      ? "cancelled"
+      : "resting";
 
     return res.status(200).json({
       orderId: order.orderId,
       status,
-      filledQuantity: (BigInt(quantity) - remaining).toString(),
+      quantity: initialQty.toString(),
+      remainingQuantity: remaining.toString(),
+      filledQuantity,
       fills: fills.length,
     });
   } catch (error) {

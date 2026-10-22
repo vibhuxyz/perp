@@ -30,9 +30,11 @@ const equitySchema = z.object({
 
 const placedOrderSchema = z.object({
   orderId: z.string(),
-  status: z.enum(["filled", "resting", "cancelled"]),
+  status: z.enum(["filled", "partially_filled", "resting", "cancelled", "rejected"]),
   filledQuantity: z.string(),
   fills: z.number(),
+  quantity: z.string().optional(),
+  remainingQuantity: z.string().optional(),
 });
 
 export type Depth = z.infer<typeof depthSchema>;

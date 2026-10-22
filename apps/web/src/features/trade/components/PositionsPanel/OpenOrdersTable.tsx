@@ -3,33 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchOpenOrders, cancelOrderApi, type OpenOrder } from '@/features/trade/api/tradeApi';
 import { useOptimisticOrdersStore, type OptimisticOrder } from '@/stores/optimistic-orders.store';
 import { formatPrice } from '@/shared/lib/formatters';
-import { Loader2, XCircle } from 'lucide-react';
+import { XCircle } from 'lucide-react';
 import { MarketIcon } from '../CryptoIcon';
-
-function StatusBadge({ status, error }: { status: string; error?: string }) {
-  if (status === 'Submitting') {
-    return (
-      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-info/10 text-info border border-info/20 animate-pulse">
-        <Loader2 className="h-2.5 w-2.5 animate-spin" />
-        <span>Submitting</span>
-      </span>
-    );
-  }
-  const isAccepted = status === 'Accepted' || status === 'resting';
-  const isFilled = status === 'Filled' || status === 'filled';
-  const badgeCls = isAccepted
-    ? 'bg-[#00DA8E]/10 text-[#00DA8E] border-[#00DA8E]/20'
-    : isFilled
-    ? 'bg-[#F7931A]/10 text-[#F7931A] border-[#F7931A]/20'
-    : 'bg-loss/10 text-loss border-loss/20';
-  const label = isAccepted ? 'Accepted' : isFilled ? 'Filled' : 'Rejected';
-
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badgeCls}`} title={error}>
-      {label}
-    </span>
-  );
-}
+import { StatusBadge } from './StatusBadge';
 
 export function OpenOrdersTable({ token }: { token: string }) {
   const queryClient = useQueryClient();
@@ -64,6 +40,7 @@ export function OpenOrdersTable({ token }: { token: string }) {
       side: o.side,
       type: o.type,
       quantity: o.quantity,
+      filledQuantity: o.filledQuantity,
       price: o.price,
       status: o.status,
       errorMessage: o.errorMessage,
@@ -78,6 +55,7 @@ export function OpenOrdersTable({ token }: { token: string }) {
       side: o.side,
       type: o.type,
       quantity: o.quantity,
+      filledQuantity: undefined as string | undefined,
       price: o.price,
       status: o.status,
       errorMessage: undefined as string | undefined,
@@ -130,7 +108,8 @@ export function OpenOrdersTable({ token }: { token: string }) {
       <tbody>
         {allOrders.map(o => {
           const isCancelling = cancellingId === (o.orderId ?? o.id);
-          const isCancelDisabled = o.status === 'Submitting' || o.status === 'Filled' || isCancelling;
+          const isCancelDisabled =
+            o.status === 'Submitting' || o.status === 'Filled' || o.status === 'filled' || isCancelling;
           const baseAsset = o.market.replace(/-PERP$/i, '');
 
           return (
@@ -155,7 +134,12 @@ export function OpenOrdersTable({ token }: { token: string }) {
               </td>
               <td className="px-3 py-2.5 text-white">${formatPrice(o.price)}</td>
               <td className="px-3 py-2.5">
-                <StatusBadge status={o.status} error={o.errorMessage} />
+                <StatusBadge
+                  status={o.status}
+                  filledQuantity={o.filledQuantity}
+                  quantity={o.quantity}
+                  error={o.errorMessage}
+                />
               </td>
               <td className="px-4 py-2.5 text-right">
                 <button

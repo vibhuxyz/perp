@@ -1,4 +1,4 @@
-export type OrderStatus = "resting" | "filled" | "cancelled" | "rejected";
+export type OrderStatus = "resting" | "partially_filled" | "filled" | "cancelled" | "rejected";
 export type Market = string;
 export type Side = "LONG" | "SHORT";
 export type OrderType = "LIMIT" | "MARKET";

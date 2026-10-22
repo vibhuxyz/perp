@@ -27,6 +27,14 @@ export function OptimisticStatusBanner({
     );
   }
 
+  if (status === "PartiallyFilled") {
+    return (
+      <div className="rounded-lg border border-warning/30 bg-warning/10 p-2.5 text-xs text-warning font-semibold">
+        ⚡ Order partially filled on {symbol}! Remaining resting on book.
+      </div>
+    );
+  }
+
   if (status === "Filled") {
     return (
       <div className="rounded-lg border border-[#F7931A]/30 bg-[#F7931A]/10 p-2.5 text-xs text-[#F7931A] font-semibold">

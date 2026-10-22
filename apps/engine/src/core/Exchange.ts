@@ -93,8 +93,13 @@ export class Exchange {
 
       const makerOrders = this.restingOrders.get(fill.makerUserId);
       const makerOrder = makerOrders?.get(fill.makerOrderId);
-      if (makerOrders && makerOrder && makerOrder.quantity === 0n) {
-        makerOrders.delete(fill.makerOrderId);
+      if (makerOrders && makerOrder) {
+        if (makerOrder.quantity === 0n) {
+          makerOrder.status = "filled";
+          makerOrders.delete(fill.makerOrderId);
+        } else {
+          makerOrder.status = "partially_filled";
+        }
       }
 
       this.auditLog.record("ORDER_FILLED", fill.takerUserId, {
@@ -132,11 +137,20 @@ export class Exchange {
       price: order.price.toString(),
     }, order.market);
 
+    const initialQuantity = order.quantity;
     const fills = this.matchingEngine.processOrder(order);
     const makerSide: Side = order.side === "LONG" ? "SHORT" : "LONG";
 
     this.processFills(order, fills, makerSide);
     this.trackRestingOrder(order);
+
+    if (order.quantity === 0n) {
+      order.status = "filled";
+    } else if (fills.length > 0 && order.quantity < initialQuantity) {
+      order.status = "partially_filled";
+    } else {
+      order.status = "resting";
+    }
 
     const t1 = process.hrtime.bigint();
     this.metrics.recordTiming(t1 - t0);

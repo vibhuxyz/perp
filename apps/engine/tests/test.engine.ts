@@ -42,18 +42,21 @@ exchange.placeOrder(order({
 check("alice locks initial margin", exchange.ledger.usersCollateral.get("alice")?.marginLocked, 250_000n);
 check("alice available drops", exchange.ledger.usersCollateral.get("alice")?.availableBalance, 750_000n);
 
-const fills = exchange.placeOrder(order({
+const bobOrder = order({
   userId: "bob", orderId: "b1", side: "SHORT", type: "MARKET",
   quantity: 5n, leverage: 2n,
-}));
+});
+const fills = exchange.placeOrder(bobOrder);
 
 check("one fill", fills.length, 1);
+check("bob order filled status", bobOrder.status, "filled");
 check("fill price is the maker's", fills[0]?.price, 50_000n);
 check("bob locks margin from the fill", exchange.ledger.usersCollateral.get("bob")?.marginLocked, 125_000n);
 check("alice holds a LONG", exchange.ledger.getPosition("alice", "BTC-PERP")?.side, "LONG");
 check("bob holds a SHORT", exchange.ledger.getPosition("bob", "BTC-PERP")?.side, "SHORT");
 check("alice position size", exchange.ledger.getPosition("alice", "BTC-PERP")?.quantity, 5n);
 check("alice resting orders count before cancel", exchange.getRestingOrders("alice").length, 1);
+check("alice resting order is partially filled", exchange.getRestingOrders("alice")[0]?.status, "partially_filled");
 const cancelled = exchange.cancelOrder("BTC-PERP", "alice", "a1");
 check("cancelled status", cancelled?.status, "cancelled");
 check("cancelled remaining quantity", cancelled?.quantity, 5n);

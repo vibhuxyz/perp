@@ -81,7 +81,7 @@ export function useOrderForm(indexPrice: string | null, market = "BTC-PERP") {
 
     const payload = parseOrderPayload(v, market, indexPrice);
     try {
-      await submitOptimisticOrder(
+      const res = await submitOptimisticOrder(
         {
           market,
           side: v.side,
@@ -93,7 +93,7 @@ export function useOrderForm(indexPrice: string | null, market = "BTC-PERP") {
         () => placeOrder(payload),
       );
 
-      setOptimisticStatus("Accepted");
+      setOptimisticStatus(res.status);
       queryClient.invalidateQueries({ queryKey: ["positions"] });
       queryClient.invalidateQueries({ queryKey: ["equity"] });
       queryClient.invalidateQueries({ queryKey: ["depth"] });

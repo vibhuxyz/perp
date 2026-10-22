@@ -7,7 +7,13 @@ import {
 
 type OptimisticAction =
   | { type: "ADD"; order: OptimisticOrder }
-  | { type: "UPDATE_STATUS"; tempId: string; status: OptimisticOrderStatus; errorMessage?: string };
+  | {
+      type: "UPDATE_STATUS";
+      tempId: string;
+      status: OptimisticOrderStatus;
+      errorMessage?: string;
+      filledQuantity?: string;
+    };
 
 export function useOptimisticOrders() {
   const storeOrders = useOptimisticOrdersStore((s) => s.orders);
@@ -15,6 +21,7 @@ export function useOptimisticOrders() {
   const markAccepted = useOptimisticOrdersStore((s) => s.markAccepted);
   const markFilled = useOptimisticOrdersStore((s) => s.markFilled);
   const markRejected = useOptimisticOrdersStore((s) => s.markRejected);
+  const recordOrderFill = useOptimisticOrdersStore((s) => s.recordOrderFill);
   const removeOrder = useOptimisticOrdersStore((s) => s.removeOrder);
 
   const [isPending, startTransition] = useTransition();
@@ -29,7 +36,12 @@ export function useOptimisticOrders() {
     if (action.type === "UPDATE_STATUS") {
       return state.map((o) =>
         o.tempId === action.tempId
-          ? { ...o, status: action.status, errorMessage: action.errorMessage ?? o.errorMessage }
+          ? {
+              ...o,
+              status: action.status,
+              errorMessage: action.errorMessage ?? o.errorMessage,
+              filledQuantity: action.filledQuantity ?? o.filledQuantity,
+            }
           : o,
       );
     }
@@ -40,44 +52,51 @@ export function useOptimisticOrders() {
     async (
       orderData: Omit<OptimisticOrder, "status" | "createdAt" | "tempId">,
       apiCall: () => Promise<{ orderId: string; status: string; filledQuantity: string; fills: number }>,
-    ) => {
+    ): Promise<{ tempId: string; status: OptimisticOrderStatus }> => {
       const tempId = `opt-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const optimisticEntry: OptimisticOrder = {
         ...orderData,
         tempId,
         status: "Submitting",
+        filledQuantity: "0",
         createdAt: Date.now(),
       };
 
-      let result: { orderId: string; status: string; filledQuantity: string; fills: number } | null = null;
+      setOptimisticAction({ type: "ADD", order: optimisticEntry });
+      addStoreOrder(optimisticEntry);
 
-      startTransition(async () => {
-        setOptimisticAction({ type: "ADD", order: optimisticEntry });
-        addStoreOrder(optimisticEntry);
+      return new Promise<{ tempId: string; status: OptimisticOrderStatus }>((resolve, reject) => {
+        startTransition(async () => {
+          try {
+            const result = await apiCall();
+            const status: OptimisticOrderStatus =
+              result.status === "filled"
+                ? "Filled"
+                : result.status === "partially_filled"
+                ? "PartiallyFilled"
+                : "Accepted";
 
-        try {
-          result = await apiCall();
-          const isFilled = result.status === "filled";
-          markAccepted(tempId, result.orderId, isFilled);
-          setOptimisticAction({
-            type: "UPDATE_STATUS",
-            tempId,
-            status: isFilled ? "Filled" : "Accepted",
-          });
-        } catch (err) {
-          const message = err instanceof Error ? err.message : "Order rejected";
-          markRejected(tempId, message);
-          setOptimisticAction({
-            type: "UPDATE_STATUS",
-            tempId,
-            status: "Rejected",
-            errorMessage: message,
-          });
-          throw err;
-        }
+            markAccepted(tempId, result.orderId, status, result.filledQuantity);
+            setOptimisticAction({
+              type: "UPDATE_STATUS",
+              tempId,
+              status,
+              filledQuantity: result.filledQuantity,
+            });
+            resolve({ tempId, status });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Order rejected";
+            markRejected(tempId, message);
+            setOptimisticAction({
+              type: "UPDATE_STATUS",
+              tempId,
+              status: "Rejected",
+              errorMessage: message,
+            });
+            reject(err);
+          }
+        });
       });
-
-      return tempId;
     },
     [addStoreOrder, markAccepted, markRejected, setOptimisticAction],
   );
@@ -87,6 +106,7 @@ export function useOptimisticOrders() {
     isTransitionPending: isPending,
     submitOptimisticOrder,
     markFilled,
+    recordOrderFill,
     removeOrder,
   };
 }
