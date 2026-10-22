@@ -8,6 +8,8 @@
   },
   "scripts": {
     "test": "bun tests/test.engine.ts",
+    "build": "tsc --noEmit",
+    "check-types": "tsc --noEmit",
     "lint": "eslint ."
   },
   "devDependencies": {

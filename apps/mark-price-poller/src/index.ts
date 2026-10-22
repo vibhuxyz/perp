@@ -65,5 +65,15 @@ export function startPoller(
 }
 
 if (import.meta.main) {
-  startPoller({ startPrice: 50_000n }, live => console.log(`BTC-PERP index ${live.toString()}`));
+  console.log("[MarkPricePoller] Price feed worker started");
+  const feeds = [
+    { name: "BTC-PERP", symbol: "BTCUSDT", startPrice: 50_000n, stepSize: 50n },
+    { name: "ETH-PERP", symbol: "ETHUSDT", startPrice: 3_000n, stepSize: 5n },
+    { name: "SOL-PERP", symbol: "SOLUSDT", startPrice: 150n, stepSize: 1n },
+  ];
+  for (const f of feeds) {
+    startPoller({ symbol: f.symbol, startPrice: f.startPrice, stepSize: f.stepSize }, price => {
+      console.log(`[Poller] ${f.name} index: $${price.toString()}`);
+    });
+  }
 }

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { Collateral, Position, Order, Market, Side } from "../types/index";
+import type { Collateral, Position, Order, Market, Side, OrderStatus } from "../types/index";
 import type { Exchange } from "../core/Exchange";
 
 export interface SerializedCollateral {
@@ -17,7 +17,7 @@ export interface SerializedPosition {
   margin: string;
   totalNotional?: string;
   liquidationPrice: string;
-  bankruptcyPrice: string;
+  bankruptcyPrice?: string;
 }
 
 export interface SerializedOrder {
@@ -29,7 +29,7 @@ export interface SerializedOrder {
   price: string;
   quantity: string;
   leverage: string;
-  status: "open" | "filled" | "partially_filled" | "cancelled";
+  status: OrderStatus;
   createdAt: string;
 }
 
@@ -71,7 +71,7 @@ export function createSnapshot(exchange: Exchange, lastSequence: bigint): Engine
         margin: p.margin.toString(),
         totalNotional: p.totalNotional?.toString(),
         liquidationPrice: p.liquidationPrice.toString(),
-        bankruptcyPrice: p.bankruptcyPrice.toString(),
+        bankruptcyPrice: p.bankruptcyPrice?.toString(),
       })),
     ]);
   }
@@ -131,7 +131,7 @@ export function restoreSnapshot(snapshot: EngineSnapshot, exchange: Exchange): v
       margin: BigInt(p.margin),
       totalNotional: p.totalNotional ? BigInt(p.totalNotional) : undefined,
       liquidationPrice: BigInt(p.liquidationPrice),
-      bankruptcyPrice: BigInt(p.bankruptcyPrice),
+      bankruptcyPrice: p.bankruptcyPrice ? BigInt(p.bankruptcyPrice) : undefined,
     }));
     exchange.ledger.userPositions.set(userId, positions);
   }

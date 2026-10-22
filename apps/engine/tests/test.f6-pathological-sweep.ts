@@ -25,6 +25,7 @@ for (let i = 1; i <= restingCount; i++) {
     price: basePrice + BigInt(i),
     quantity: 1n,
     leverage: 10n,
+    status: "resting",
     createdAt: new Date(),
   };
   book.processOrder(askOrder);
@@ -41,6 +42,7 @@ const sweepTakerOrder: Order = {
   price: 0n,
   quantity: BigInt(restingCount),
   leverage: 10n,
+  status: "resting",
   createdAt: new Date(),
 };
 

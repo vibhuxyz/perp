@@ -7,6 +7,9 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "tsc --noEmit",
+    "check-types": "tsc --noEmit",
     "lint": "eslint ."
   },
   "devDependencies": {
@@ -19,6 +22,8 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@repo/shared": "workspace:*",
+    "ioredis": "^5.11.0",
     "kafkajs": "^2.2.4",
     "redis": "^6.0.0",
     "ws": "^8.21.0"

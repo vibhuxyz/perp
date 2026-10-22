@@ -7,6 +7,9 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "build": "tsc --noEmit",
+    "check-types": "tsc --noEmit",
     "lint": "eslint ."
   },
   "devDependencies": {

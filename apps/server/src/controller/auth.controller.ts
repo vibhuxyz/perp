@@ -56,7 +56,7 @@ export const signUp = async (req: Request, res: Response) => {
     }
 
     const newUser = { id: createdUser.id, email: createdUser.email, username: createdUser.username, isAdmin: createdUser.isAdmin };
-    await db.insert(collateralTable).values({ userId: String(createdUser.id), availableBalance: "0", locked: "0" });
+    await db.insert(collateralTable).values({ id: crypto.randomUUID(), userId: String(createdUser.id), availableBalance: "0", locked: "0" });
     const { token, refreshToken } = signAuthTokens(newUser);
     setAuthCookies(res, token, refreshToken);
 

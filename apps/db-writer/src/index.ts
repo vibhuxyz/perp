@@ -1,8 +1,21 @@
 import { writeFile } from "node:fs/promises";
 import type { Collateral, Fill, Position } from "engine";
-import { startDbWriterConsumer } from "./writer";
 
-export * from "./writer";
+import {
+  recordTrade,
+  recordCandle,
+  cacheUserState,
+  startDbWriterConsumer,
+  startDbWriterWorker,
+} from "./writer";
+
+export {
+  recordTrade,
+  recordCandle,
+  cacheUserState,
+  startDbWriterConsumer,
+  startDbWriterWorker,
+};
 
 export interface ExchangeState {
   usersCollateral: Map<string, Collateral>;
@@ -25,5 +38,8 @@ export async function snapshot(state: ExchangeState, fills: Fill[], path: string
 }
 
 if (import.meta.main) {
-  startDbWriterConsumer().catch(console.error);
+  console.log("[DB-Writer] Persistence worker started");
+  startDbWriterConsumer().catch((err: unknown) => {
+    console.error("[DB-Writer] Consumer error:", err);
+  });
 }
