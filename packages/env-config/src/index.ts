@@ -28,9 +28,7 @@ export const ENV = {
 
   API_GATEWAY_PORT: Number(process.env.API_GATEWAY_PORT ?? 8080),
   PORT: Number(process.env.PORT ?? 6000),
-  // Not 7000 — macOS ControlCenter binds it for AirPlay Receiver, so the feed dies
-  // with EADDRINUSE on a stock Mac before it ever accepts a client.
-  WS_PORT: Number(process.env.WS_PORT ?? 7070),
+  WS_PORT: Number(process.env.WS_PORT ?? 7071),
 
   DATABASE_URL: required("DATABASE_URL"),
   JWT_SECRET: required("JWT_SECRET"),
@@ -46,7 +44,7 @@ export const ENV = {
   ORDER_SERVICE_URL: process.env.ORDER_SERVICE_URL || `http://localhost:${process.env.PORT ?? 6000}`,
   MARKET_SERVICE_URL: process.env.MARKET_SERVICE_URL || `http://localhost:${process.env.PORT ?? 6000}`,
   WALLET_SERVICE_URL: process.env.WALLET_SERVICE_URL || `http://localhost:${process.env.PORT ?? 6000}`,
-  WS_SERVICE_URL: process.env.WS_SERVICE_URL || `ws://localhost:${process.env.WS_PORT ?? 7070}`,
+  WS_SERVICE_URL: process.env.WS_SERVICE_URL || `ws://localhost:${process.env.WS_PORT ?? 7071}`,
 
   REDIS_URL: process.env.REDIS_URL || "redis://localhost:6379",
   // 29092 is the host-facing listener in docker-compose.dev.yml; 9092 advertises the

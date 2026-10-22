@@ -4,7 +4,7 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "clean:ports": "kill -9 $(lsof -ti :5173,6000,7070,8080) 2>/dev/null || true",
+    "clean:ports": "kill -9 $(lsof -ti :5173,6000,7071,8080) 2>/dev/null || true",
     "lint": "turbo run lint",
     "test": "bun apps/engine/tests/test.engine.ts",
     "test:all": "for f in apps/engine/tests/test.*.ts; do echo \"=== $f ===\"; bun \"$f\" || exit 1; done",

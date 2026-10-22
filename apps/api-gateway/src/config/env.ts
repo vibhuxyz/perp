@@ -42,7 +42,7 @@ export const upstreamServices: UpstreamServices = {
   order: ENV.ORDER_SERVICE_URL || `http://localhost:${ENV.PORT || 6000}`,
   market: ENV.MARKET_SERVICE_URL || `http://localhost:${ENV.PORT || 6000}`,
   wallet: ENV.WALLET_SERVICE_URL || `http://localhost:${ENV.PORT || 6000}`,
-  ws: new URL(ENV.WS_SERVICE_URL || `ws://localhost:${ENV.WS_PORT || 7070}`),
+  ws: new URL(ENV.WS_SERVICE_URL || `ws://localhost:${ENV.WS_PORT || 7071}`),
 };
 
 export const port = Number(ENV.API_GATEWAY_PORT) || 8080;
