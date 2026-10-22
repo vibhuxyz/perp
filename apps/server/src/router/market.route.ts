@@ -8,6 +8,9 @@ import {
   MARKET,
   feed,
 } from "../exchange";
+import { getCachedPositions, getCachedBalance } from "@repo/shared";
+import { db, candlesTable } from "@repo/db";
+import { desc, eq } from "drizzle-orm";
 
 const router = express.Router();
 
@@ -50,11 +53,34 @@ router.get("/ticker", (_req, res) => {
   });
 });
 
-router.get("/candles", (req, res) => {
+router.get("/candles", async (req, res) => {
   const market = (req.query.market as string) ?? MARKET;
+
+  try {
+    const rows = await db
+      .select()
+      .from(candlesTable)
+      .where(eq(candlesTable.market, market))
+      .orderBy(desc(candlesTable.time))
+      .limit(100);
+
+    if (rows.length > 0) {
+      const formatted = rows.reverse().map(r => ({
+        time: Math.floor(new Date(r.time).getTime() / 1000),
+        open: Number(r.open),
+        high: Number(r.high),
+        low: Number(r.low),
+        close: Number(r.close),
+        volume: Number(r.volume),
+      }));
+      return res.json(formatted);
+    }
+  } catch {
+    // db fallback
+  }
+
   const now = Date.now();
   const currentPrice = Number(exchange.matchingEngine.orderbooks.get(market)?.lastTradePrice ?? getIndexPrice());
-
   const candleCount = Math.min(Number(req.query.limit) || 100, 300);
   const candleDurationMs = 60_000;
   const result = [];
@@ -82,10 +108,15 @@ router.get("/positions", (req, res) => {
     return res.json([]);
   }
 
-  return authMiddleware(req, res, () => {
-    const positions = exchange.ledger.userPositions.get(String(req.userId)) ?? [];
+  return authMiddleware(req, res, async () => {
+    const userId = String(req.userId);
+    const cached = await getCachedPositions<unknown[]>(userId);
+    if (cached) {
+      return res.json(cached);
+    }
 
-    res.json(
+    const positions = exchange.ledger.userPositions.get(userId) ?? [];
+    return res.json(
       positions.map((p) => ({
         market: p.market,
         side: p.side,
@@ -140,15 +171,19 @@ router.get("/equity", (req, res) => {
     });
   }
 
-  return authMiddleware(req, res, () => {
+  return authMiddleware(req, res, async () => {
     const userId = String(req.userId);
-    let collateral = exchange.ledger.usersCollateral.get(userId);
+    const cached = await getCachedBalance<{ availableBalance: string; marginLocked: string }>(userId);
+    if (cached) {
+      return res.json(cached);
+    }
 
+    let collateral = exchange.ledger.usersCollateral.get(userId);
     if (!collateral) {
       collateral = exchange.deposit(userId, 10_000n);
     }
 
-    res.json({
+    return res.json({
       availableBalance: collateral.availableBalance.toString(),
       marginLocked: collateral.marginLocked.toString(),
     });
@@ -156,7 +191,7 @@ router.get("/equity", (req, res) => {
 });
 
 router.get("/markets", (_req, res) => {
-  res.json([MARKET]);
+  res.json([MARKET, "ETH-PERP"]);
 });
 
 export default router;

@@ -8,7 +8,8 @@ import {
 } from "engine";
 import { startPoller } from "mark-price-poller";
 import { MarketFeed } from "@repo/ws";
-import { snapshot } from "db-writer";
+import { snapshot, recordTrade, recordCandle, cacheUserState } from "db-writer";
+import { sendMessage, TOPICS } from "@repo/shared";
 
 export const MARKET = "BTC-PERP";
 
@@ -29,6 +30,14 @@ export function getNextFundingTime(): Date {
   return nextFundingTime;
 }
 
+export async function emitEngineEvent(type: string, payload: object, key = MARKET): Promise<void> {
+  try {
+    await sendMessage(TOPICS.ENGINE_EVENTS, { type, payload, timestamp: Date.now() }, key);
+  } catch {
+    // kafka offline
+  }
+}
+
 export function broadcastDepth(market = MARKET): void {
   const book = exchange.matchingEngine.orderbooks.get(market);
   if (!book) {
@@ -45,6 +54,7 @@ export function broadcastDepth(market = MARKET): void {
 
   feed.broadcast({
     type: "depth",
+    channel: `depth:${book.market}`,
     market: book.market,
     bids: levels(book.bids),
     asks: levels(book.asks),
@@ -60,6 +70,7 @@ export function broadcastTicker(market = MARKET): void {
 
   feed.broadcast({
     type: "ticker",
+    channel: `market:${market}`,
     market,
     lastPrice: lastPrice.toString(),
     indexPrice: indexPrice.toString(),
@@ -72,7 +83,21 @@ export function recordFills(newFills: Fill[]): void {
   fills.push(...newFills);
 
   for (const fill of newFills) {
-    feed.broadcast({ type: "fill", fill });
+    feed.broadcast({ type: "fill", channel: `market:${fill.market}`, fill });
+    void emitEngineEvent("fill", fill, fill.market);
+    void recordTrade(fill);
+    void recordCandle(fill.market, fill.price, fill.quantity, fill.createdAt);
+
+    void cacheUserState(
+      fill.takerUserId,
+      exchange.ledger.usersCollateral.get(fill.takerUserId),
+      exchange.ledger.userPositions.get(fill.takerUserId),
+    );
+    void cacheUserState(
+      fill.makerUserId,
+      exchange.ledger.usersCollateral.get(fill.makerUserId),
+      exchange.ledger.userPositions.get(fill.makerUserId),
+    );
   }
 
   broadcastDepth(MARKET);
@@ -84,11 +109,12 @@ export function start(): void {
 
   startPoller({ startPrice: indexPrice }, price => {
     indexPrice = price;
-    feed.broadcast({ type: "index", market: MARKET, price });
+    feed.broadcast({ type: "index", channel: `market:${MARKET}`, market: MARKET, price });
     broadcastTicker(MARKET);
 
     for (const position of exchange.riskManager.checkLiquidations(MARKET, price)) {
-      feed.broadcast({ type: "liquidation", position });
+      feed.broadcast({ type: "liquidation", channel: `market:${MARKET}`, position });
+      void emitEngineEvent("liquidation", position, position.market);
       broadcastDepth(MARKET);
     }
   });
@@ -99,7 +125,8 @@ export function start(): void {
     const payments = settleFunding(exchange.ledger, MARKET, lastPrice, indexPrice);
 
     if (payments.length > 0) {
-      feed.broadcast({ type: "funding", payments });
+      feed.broadcast({ type: "funding", channel: `market:${MARKET}`, payments });
+      void emitEngineEvent("funding", payments, MARKET);
     }
 
     nextFundingTime = new Date(Date.now() + FUNDING_INTERVAL_MS);

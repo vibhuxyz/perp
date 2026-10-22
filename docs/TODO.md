@@ -106,27 +106,27 @@ price is stable. Funding debits longs and credits shorts symmetrically.
 **Goal:** kill the process at any moment and lose nothing. Deliver every message twice and
 change nothing.
 
-- [ ] Write-ahead log — append every accepted command to disk before mutating memory.
-- [ ] Deterministic boot replay reconstructing orderbook + positions from the WAL.
-- [ ] Idempotency keys on orders and fills; a replayed event cannot double-credit.
-- [ ] Kafka replaces the direct calls — `order.commands` keyed by market, `engine.events` out.
-- [ ] `apps/db-writer` consumes `engine.events` → Redis cache + batched TimescaleDB writes (Drizzle).
-- [ ] Read routes (`/positions/open`, `/equity/available`) served from Redis.
+- [x] Write-ahead log — append every accepted command to disk before mutating memory.
+- [x] Deterministic boot replay reconstructing orderbook + positions from the WAL.
+- [x] Idempotency keys on orders and fills; a replayed event cannot double-credit.
+- [x] Kafka replaces the direct calls — `order.commands` keyed by market, `engine.events` out.
+- [x] `apps/db-writer` consumes `engine.events` → Redis cache + batched TimescaleDB writes (Drizzle).
+- [x] Read routes (`/positions/open`, `/equity/available`) served from Redis.
 - [ ] Reconciliation job: `deposits === available + locked + insurance + fees`, alarm on drift.
 
 ### Needed by the frontend at this rung
-- [ ] Sequence number on every book update, plus a snapshot endpoint to resync against.
-- [ ] Subscribe/unsubscribe protocol with channels instead of one firehose, including
+- [x] Sequence number on every book update, plus a snapshot endpoint to resync against.
+- [x] Subscribe/unsubscribe protocol with channels instead of one firehose, including
       authenticated private channels for positions, orders and fills.
-- [ ] Candle storage on Timescale hypertables and a `/candles` route. The chart panel already
+- [x] Candle storage on Timescale hypertables and a `/candles` route. The chart panel already
       paints generated candles via lightweight-charts; this swap is what makes them real.
 - [ ] Paginated trade history and order history, so the feed is not empty on page load and
       the history table has something to virtualize.
-- [ ] Create more than one market. `createMarket()` already supports it; only `BTC-PERP`
+- [x] Create more than one market. `createMarket()` already supports it; only `BTC-PERP`
       exists, so there is no watchlist and nothing to switch between.
 
 **Evidence (BETTER):**
-- [ ] Failure experiments F1 (kill -9 + replay), F2 (duplicate delivery), F7 (corrupt WAL tail).
+- [x] Failure experiments F1 (kill -9 + replay), F2 (duplicate delivery), F7 (corrupt WAL tail).
       Record detection time, recovery time, lost work, duplicate work, state diff.
 - [ ] Invariants D1–D3 and L2 status moved to `stressed`.
 - [ ] Study before building: Kafka partitions/offsets/delivery semantics, Postgres/Timescale

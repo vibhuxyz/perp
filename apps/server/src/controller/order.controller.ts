@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import type { Order } from "engine";
 import { orderSchema } from "../vallidation/order.validate";
 import { exchange, recordFills, broadcastDepth, broadcastTicker } from "../exchange";
+import { publishCommand } from "../kafka/producer";
 
 export const createOrder = async (req: Request, res: Response) => {
   const result = orderSchema.safeParse(req.body);
@@ -39,6 +40,7 @@ export const createOrder = async (req: Request, res: Response) => {
   };
 
   try {
+    void publishCommand("PLACE_ORDER", order, order.market);
     const fills = exchange.placeOrder(order);
     recordFills(fills);
     broadcastDepth(market);
@@ -77,6 +79,8 @@ export const cancelOrder = async (req: Request, res: Response) => {
   if (!cancelled) {
     return res.status(404).json({ error: "Order not found or already filled" });
   }
+
+  void publishCommand("CANCEL_ORDER", { orderId, userId: String(userId), market }, market);
 
   broadcastDepth(market);
   broadcastTicker(market);

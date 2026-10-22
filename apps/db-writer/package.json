@@ -18,6 +18,8 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@repo/db": "workspace:*",
+    "@repo/shared": "workspace:*",
     "engine": "workspace:*",
     "kafkajs": "^2.2.4",
     "redis": "^6.0.0"
