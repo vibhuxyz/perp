@@ -113,10 +113,14 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
     const priceNum = parseFloat(effectivePrice) || (indexPrice ? parseFloat(indexPrice) : 0);
     if (priceNum <= 0) return;
     const numVal = parseFloat(cleanVal);
+    const available = equity?.availableBalance ? parseFloat(equity.availableBalance) : 10000;
+    const maxVal = available * currentLeverage;
     if (isNaN(numVal) || numVal <= 0) {
       form.setValue('quantity', '0');
+      setPercent(0);
     } else {
       form.setValue('quantity', (numVal / priceNum).toFixed(4));
+      setPercent(maxVal > 0 ? Math.min(100, Math.max(0, Math.round((numVal / maxVal) * 100))) : 0);
     }
   };
 
