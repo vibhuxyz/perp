@@ -9,6 +9,7 @@ import { TrendingUp, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MarketIcon } from '@/features/trade/components/CryptoIcon';
 
 function PositionRow({
   position,
@@ -29,13 +30,20 @@ function PositionRow({
 
   return (
     <tr className="border-t border-border-subtle hover:bg-bg-elevated/30 transition-colors">
-      <td className="px-4 py-2.5 text-text-primary font-medium">{position.market}</td>
+      <td className="px-4 py-2.5 text-text-primary font-medium">
+        <div className="flex items-center gap-1.5">
+          <MarketIcon symbol={position.market} className="h-4 w-4" />
+          <span>{position.market}</span>
+        </div>
+      </td>
       <td className="px-4 py-2.5">
         <Badge variant={isLong ? 'profit' : 'loss'}>
           {isLong ? 'Long' : 'Short'}
         </Badge>
       </td>
-      <td className="px-4 py-2.5 tabular-nums text-text-primary">{position.quantity}</td>
+      <td className="px-4 py-2.5 tabular-nums text-text-primary">
+        {position.quantity} {position.market.replace(/-PERP$/i, '')}
+      </td>
       <td className="px-4 py-2.5 tabular-nums text-text-secondary">${formatPrice(position.averagePrice)}</td>
       <td className="px-4 py-2.5 tabular-nums text-text-secondary">${formatPrice(markPrice)}</td>
       <td className="px-4 py-2.5 tabular-nums text-text-secondary">${formatPrice(position.margin)}</td>

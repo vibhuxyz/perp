@@ -1,7 +1,11 @@
 import type { UseFormRegister } from 'react-hook-form';
 import type { OrderFormValues } from '../../hooks/useOrderForm';
+import { useMarketStore } from '@/stores/market.store';
+import { MarketIcon } from '../CryptoIcon';
 
 export function QuantityInput({ register }: { register: UseFormRegister<OrderFormValues> }) {
+  const currentMarket = useMarketStore(s => s.currentMarket);
+
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-xs font-medium text-text-secondary">Quantity</span>
@@ -12,9 +16,7 @@ export function QuantityInput({ register }: { register: UseFormRegister<OrderFor
           placeholder="0"
           className="w-full bg-transparent text-base font-semibold text-white font-mono tabular-nums placeholder:text-text-muted focus:outline-none"
         />
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#F7931A] text-white font-bold text-xs shadow-xs ml-2 select-none">
-          ₿
-        </div>
+        <MarketIcon symbol={currentMarket} className="h-6 w-6 ml-2 select-none" />
       </div>
     </div>
   );

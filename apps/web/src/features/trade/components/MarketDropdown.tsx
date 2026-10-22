@@ -4,18 +4,9 @@ import {
   type SupportedMarket,
 } from '@/stores/market.store';
 import { Check } from 'lucide-react';
+import { MarketIcon } from './CryptoIcon';
 
-export function MarketIcon({ symbol }: { symbol: SupportedMarket }) {
-  const meta = MARKET_DETAILS[symbol];
-  return (
-    <div
-      className="flex h-8 w-8 items-center justify-center rounded-full text-white font-bold text-xs shadow-md"
-      style={{ backgroundColor: meta.color }}
-    >
-      {meta.baseAsset.slice(0, 1)}
-    </div>
-  );
-}
+export { MarketIcon };
 
 export function MarketDropdown({
   currentMarket,
@@ -44,7 +35,7 @@ export function MarketDropdown({
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <MarketIcon symbol={m} />
+              <MarketIcon symbol={m} className="h-7 w-7" />
               <div className="flex flex-col">
                 <span className="text-xs font-bold text-white">{item.symbol}</span>
                 <span className="text-[10px] text-text-muted">{item.name}</span>

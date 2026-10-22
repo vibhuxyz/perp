@@ -3,6 +3,7 @@ import Decimal from 'decimal.js';
 import { unrealisedPnl } from '@/shared/lib/decimal';
 import { formatPrice, formatSigned } from '@/shared/lib/formatters';
 import type { Position } from '@/features/trade/api/tradeApi';
+import { MarketIcon } from '../CryptoIcon';
 
 type PnlTone = 'profit' | 'loss' | 'flat';
 
@@ -39,16 +40,13 @@ export function PositionRow({
   const isLong = pos.side === 'LONG';
   const pnlTone: PnlTone = pnl.isPositive() ? 'profit' : pnl.isNegative() ? 'loss' : 'flat';
   const roe = computeRoe(pnl, pos.margin);
+  const baseAsset = pos.market.replace(/-PERP$/i, '');
 
   return (
     <tr className="border-b border-border-subtle/50 hover:bg-bg-elevated/50 transition-colors">
       <td className="px-4 py-3">
         <div className="flex items-center gap-2">
-          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#F7931A] text-white">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M15.76 10.42c.31-.92.1-1.97-.56-2.61-.75-.73-1.89-.96-3.15-.98V5h-1.5v1.8H9.3V5H7.8v1.8H5.5v1.5h1.25c.34 0 .5.16.5.5v8.4c0 .34-.16.5-.5.5H5.5v1.5h2.3V22h1.5v-1.8h1.25V22h1.5v-1.8c2.4-.04 4.2-.7 4.57-2.6.28-1.46-.42-2.52-1.61-3.08 1.05-.48 1.68-1.45 1.55-4.1zm-4.71-2.22c1.4.02 2.6.35 2.6 1.7 0 1.25-1.07 1.6-2.6 1.6H9.3V8.2h1.75zm.35 9.1H9.3v-3.7h1.9c1.6 0 2.8.38 2.8 1.85 0 1.35-1.12 1.85-2.6 1.85z" />
-            </svg>
-          </div>
+          <MarketIcon symbol={pos.market} className="h-5 w-5" />
           <span className="font-bold text-white font-sans text-xs">{pos.market}</span>
         </div>
       </td>
@@ -63,7 +61,9 @@ export function PositionRow({
         </span>
       </td>
 
-      <td className="px-3 py-3 text-white font-bold tabular-nums">{pos.quantity} BTC</td>
+      <td className="px-3 py-3 text-white font-bold tabular-nums">
+        {pos.quantity} {baseAsset}
+      </td>
       <td className="px-3 py-3 text-white tabular-nums">${formatPrice(pos.averagePrice)}</td>
       <td className="px-3 py-3 text-white tabular-nums">${formatPrice(currentMark)}</td>
       <td className="px-3 py-3 text-loss font-bold tabular-nums">${formatPrice(pos.liquidationPrice)}</td>
