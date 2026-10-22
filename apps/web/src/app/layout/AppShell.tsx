@@ -21,20 +21,15 @@ function PageSkeleton() {
 }
 
 export function AppShell() {
-  // Single market WebSocket connection opened at top of app
   useMarketFeed();
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0A0D14] text-text-primary">
-      {/* Top Header */}
       <TopNav />
 
-      {/* Main Workspace Body */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Left Vertical Navigation Sidebar */}
         <LeftSidebar />
 
-        {/* Right Trading View with Top Stats Bar */}
         <div className="flex flex-1 flex-col min-w-0 min-h-0 overflow-hidden">
           <StatsBar />
           <main className="flex-1 flex min-w-0 min-h-0 overflow-hidden bg-[#0A0D14]">
@@ -45,10 +40,7 @@ export function AppShell() {
         </div>
       </div>
 
-      {/* Bottom Status Bar */}
       <StatusBar />
-
-      {/* Toast notifications */}
       <Toaster position="bottom-right" />
     </div>
   );

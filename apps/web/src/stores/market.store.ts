@@ -62,6 +62,7 @@ interface MarketState {
   setBook: (bids: Level[], asks: Level[]) => void;
   setIndexPrice: (price: string) => void;
   setLastTradePrice: (price: string) => void;
+  setTrades: (trades: Trade[]) => void;
   addTrade: (trade: Trade) => void;
 }
 
@@ -74,6 +75,7 @@ export const useMarketStore = create<MarketState>((set, get) => ({
   high24h: null,
   low24h: null,
   trades: [],
+  setTrades: trades => set({ trades }),
   setMarket: currentMarket =>
     set({
       currentMarket,

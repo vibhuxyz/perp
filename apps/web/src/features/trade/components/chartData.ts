@@ -52,9 +52,6 @@ export function formatChartTimestamp(ts: number): string {
   return `${day} ${month} ${year}, ${hours}:${mins}:${secs} UTC`;
 }
 
-/**
- * Generates realistic candlestick and volume history leading up to basePrice.
- */
 export function generateInitialCandles(
   basePrice: number,
   count = 60,
@@ -103,4 +100,40 @@ export function generateInitialCandles(
     candles: rawCandles.reverse(),
     volumes: rawVolumes.reverse(),
   };
+}
+
+export function mapApiCandles(items: Array<{ time: number; open: number; high: number; low: number; close: number; volume: number }>): {
+  candles: CandlestickData[];
+  volumes: VolumeData[];
+} {
+  const candles: CandlestickData[] = [];
+  const volumes: VolumeData[] = [];
+  for (const item of items) {
+    const time = item.time as UTCTimestamp;
+    candles.push({
+      time,
+      open: item.open,
+      high: item.high,
+      low: item.low,
+      close: item.close,
+    });
+    volumes.push({
+      time,
+      value: item.volume,
+      color: item.close >= item.open ? 'rgba(0, 242, 157, 0.4)' : 'rgba(255, 77, 90, 0.4)',
+    });
+  }
+  return { candles, volumes };
+}
+
+export function resolveCandleData(
+  realCandles: Array<{ time: number; open: number; high: number; low: number; close: number; volume: number }> | undefined,
+  effectivePrice: number,
+  activeTimeframe: string,
+): { candles: CandlestickData[]; volumes: VolumeData[] } {
+  if (realCandles && realCandles.length > 0) {
+    return mapApiCandles(realCandles);
+  }
+  const interval = TIMEFRAME_SECONDS[activeTimeframe] || 3600;
+  return generateInitialCandles(effectivePrice, 60, interval);
 }

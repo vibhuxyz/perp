@@ -11,4 +11,5 @@ export * from "./wal/index";
 export * from "./pipeline/index";
 export * from "./fencing/index";
 export * from "./reconciliation/index";
+export * from "./bots/index";
 export * from "./types/index";

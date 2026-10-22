@@ -1,9 +1,10 @@
-import { useMarketStore } from '@/stores/market.store';
+import { useMarketStore, MARKET_DETAILS } from '@/stores/market.store';
 import { formatPrice } from '@/shared/lib/formatters';
 import type { HoverData } from '../chartData';
 
 export function HoverTooltip({ hoverData }: { hoverData: HoverData }) {
   const currentMarket = useMarketStore(s => s.currentMarket);
+  const baseAsset = MARKET_DETAILS[currentMarket]?.baseAsset ?? 'BTC';
   const sign = (n: number) => (n >= 0 ? '+' : '');
   const closeColor = hoverData.isUp ? 'text-profit' : 'text-loss';
 
@@ -42,7 +43,7 @@ export function HoverTooltip({ hoverData }: { hoverData: HoverData }) {
       <div className="flex items-center justify-between border-t border-border-subtle pt-1.5 text-[11px]">
         <div className="flex items-center gap-1">
           <span className="text-text-secondary font-sans">Volume:</span>
-          <span className="text-white font-semibold tabular-nums">{hoverData.volume.toFixed(2)} BTC</span>
+          <span className="text-white font-semibold tabular-nums">{hoverData.volume.toFixed(2)} {baseAsset}</span>
         </div>
         <div className={`font-bold tabular-nums ${closeColor}`}>
           {sign(hoverData.change)}

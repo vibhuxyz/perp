@@ -4,6 +4,7 @@ import {
   settleFunding,
   calculateFundingRate,
   FUNDING_INTERVAL_MS,
+  MarketMakerBot,
   type Fill,
 } from "engine";
 import { startPoller } from "mark-price-poller";
@@ -129,10 +130,39 @@ export function recordFills(newFills: Fill[]): void {
   }
 }
 
+function seedMarketLiquidity(m: SupportedMarket, startPrice: bigint) {
+  exchange.deposit("mm_bot", 20_000_000n);
+  const mm = new MarketMakerBot(exchange, {
+    userId: "mm_bot",
+    market: m,
+    spreadBps: 15n,
+    levels: 6,
+    orderSize: m === "BTC-PERP" ? 1n : m === "ETH-PERP" ? 10n : 50n,
+  });
+  mm.quote(startPrice);
+
+  exchange.deposit("trader_init", 1_000_000n);
+  const initialFills = exchange.placeOrder({
+    userId: "trader_init",
+    orderId: `init_trade_${m}`,
+    market: m,
+    side: "LONG",
+    type: "MARKET",
+    price: startPrice,
+    quantity: 1n,
+    leverage: 10n,
+    status: "resting",
+    createdAt: new Date(),
+  });
+  recordFills(initialFills);
+}
+
 export function start(): void {
   for (const m of MARKETS) {
     exchange.createMarket(m);
     const cfg = MARKET_CONFIGS[m];
+    seedMarketLiquidity(m, cfg.startPrice);
+
     startPoller({ startPrice: cfg.startPrice, stepSize: cfg.stepSize, symbol: cfg.symbol }, price => {
       indexPrices.set(m, price);
       feed.broadcast({ type: "index", channel: `market:${m}`, market: m, price });

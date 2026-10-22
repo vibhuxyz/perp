@@ -1,12 +1,15 @@
 import { formatPrice, formatSize } from '@/shared/lib/formatters';
-import type { Trade } from '@/stores/market.store';
+import { useMarketStore, MARKET_DETAILS, type Trade } from '@/stores/market.store';
 
 export function TradesView({ trades }: { trades: Trade[] }) {
+  const currentMarket = useMarketStore(s => s.currentMarket);
+  const baseAsset = MARKET_DETAILS[currentMarket]?.baseAsset ?? 'BTC';
+
   return (
     <div className="flex flex-col flex-1 p-3 text-xs text-text-secondary font-mono">
       <div className="grid grid-cols-3 pb-2 text-[11px] font-medium border-b border-border-subtle/50">
         <span>Price (USD)</span>
-        <span className="text-right">Size (BTC)</span>
+        <span className="text-right">Size ({baseAsset})</span>
         <span className="text-right">Time</span>
       </div>
       <div className="flex flex-col gap-1 pt-2 overflow-y-auto scrollbar-thin">
@@ -19,7 +22,9 @@ export function TradesView({ trades }: { trades: Trade[] }) {
             </div>
           ))
         ) : (
-          <div className="py-12 text-center text-[11px] text-text-secondary">No trades recorded yet this session.</div>
+          <div className="py-12 text-center text-[11px] text-text-secondary">
+            No trades recorded yet this session.
+          </div>
         )}
       </div>
     </div>

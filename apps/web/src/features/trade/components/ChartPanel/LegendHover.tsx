@@ -1,7 +1,10 @@
 import { formatPrice } from '@/shared/lib/formatters';
+import { useMarketStore, MARKET_DETAILS } from '@/stores/market.store';
 import type { HoverData } from '../chartData';
 
 export function LegendHover({ hoverData }: { hoverData: HoverData }) {
+  const currentMarket = useMarketStore(s => s.currentMarket);
+  const baseAsset = MARKET_DETAILS[currentMarket]?.baseAsset ?? 'BTC';
   const sign = (n: number) => (n >= 0 ? '+' : '');
   const closeColor = hoverData.isUp ? 'text-profit' : 'text-loss';
 
@@ -21,7 +24,7 @@ export function LegendHover({ hoverData }: { hoverData: HoverData }) {
         C: <strong className={closeColor}>${formatPrice(hoverData.close)}</strong>
       </span>
       <span>
-        Vol: <strong className="text-white">{hoverData.volume.toFixed(2)} BTC</strong>
+        Vol: <strong className="text-white">{hoverData.volume.toFixed(2)} {baseAsset}</strong>
       </span>
       <span className={`font-bold ${closeColor}`}>
         {sign(hoverData.change)}

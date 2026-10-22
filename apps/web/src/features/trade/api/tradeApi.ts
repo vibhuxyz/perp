@@ -97,3 +97,34 @@ export const cancelOrderApi = (orderId: string, market = "BTC-PERP") =>
     method: "POST",
     body: JSON.stringify({ market, orderId }),
   });
+
+const tradeItemSchema = z.object({
+  fillId: z.string(),
+  market: z.string(),
+  price: z.string(),
+  quantity: z.string(),
+  side: z.string(),
+  createdAt: z.string(),
+});
+
+const tradesResponseSchema = z.object({
+  trades: z.array(tradeItemSchema),
+  nextCursor: z.string().nullable(),
+});
+
+export const fetchTrades = (market: string) =>
+  api(`/api/trades?market=${market}`, tradesResponseSchema);
+
+const candleItemSchema = z.object({
+  time: z.number(),
+  open: z.number(),
+  high: z.number(),
+  low: z.number(),
+  close: z.number(),
+  volume: z.number(),
+});
+
+export type CandleItem = z.infer<typeof candleItemSchema>;
+
+export const fetchCandles = (market: string, limit = 100) =>
+  api(`/api/candles?market=${market}&limit=${limit}`, z.array(candleItemSchema));

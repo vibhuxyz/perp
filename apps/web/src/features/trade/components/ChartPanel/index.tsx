@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useMarketStore } from '@/stores/market.store';
+import { fetchCandles } from '@/features/trade/api/tradeApi';
 import { ChartToolbar } from './ChartToolbar';
 import { ChartLegend } from './ChartLegend';
 import { DrawingToolsSidebar } from './DrawingToolsSidebar';
@@ -15,11 +17,18 @@ export function ChartPanel() {
   const [activeRange, setActiveRange] = useState<string>('1D');
   const [utcTime, setUtcTime] = useState(() => new Date().toISOString().substring(11, 19));
 
+  const currentMarket = useMarketStore(s => s.currentMarket);
   const lastTradePrice = useMarketStore(s => s.lastTradePrice);
   const indexPrice = useMarketStore(s => s.indexPrice);
   const trades = useMarketStore(s => s.trades);
 
-  // Keep live UTC clock updated
+  const { data: realCandles } = useQuery({
+    queryKey: ['candles', currentMarket],
+    queryFn: () => fetchCandles(currentMarket, 100),
+    refetchInterval: 5_000,
+    retry: false,
+  });
+
   useEffect(() => {
     const timer = setInterval(() => {
       setUtcTime(new Date().toISOString().substring(11, 19));
@@ -39,6 +48,7 @@ export function ChartPanel() {
     lastTradePrice,
     indexPrice,
     trades,
+    realCandles,
   });
 
   return (

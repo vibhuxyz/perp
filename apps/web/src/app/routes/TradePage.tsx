@@ -1,12 +1,40 @@
 import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchDepth } from '@/features/trade/api/tradeApi';
-import { useMarketStore } from '@/stores/market.store';
+import { fetchDepth, fetchTrades, type Depth } from '@/features/trade/api/tradeApi';
+import { useMarketStore, type Level, type Trade } from '@/stores/market.store';
 import { MarketTickerHeader } from '@/features/trade/components/MarketTickerHeader';
 import { ChartPanel } from '@/features/trade/components/ChartPanel';
 import { PositionsPanel } from '@/features/trade/components/PositionsPanel';
 import { OrderBook } from '@/features/trade/components/OrderBook';
 import { OrderTicket } from '@/features/trade/components/OrderTicket';
+
+function syncDepthToStore(
+  depth: Depth | undefined,
+  setBook: (bids: Level[], asks: Level[]) => void,
+  setIndexPrice: (p: string) => void,
+  setLastTradePrice: (p: string) => void,
+) {
+  if (!depth) return;
+  if (depth.bids && depth.asks) setBook(depth.bids, depth.asks);
+  if (depth.indexPrice) setIndexPrice(depth.indexPrice);
+  if (depth.lastTradePrice) setLastTradePrice(depth.lastTradePrice);
+}
+
+function mapTrades(trades: Array<{ fillId: string; price: string; quantity: string; side: string; createdAt: string }>): Trade[] {
+  return trades.map(t => {
+    const d = new Date(t.createdAt);
+    const time = isNaN(d.getTime())
+      ? new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return {
+      id: t.fillId,
+      price: t.price,
+      size: t.quantity,
+      time,
+      isUp: t.side === 'BUY',
+    };
+  });
+}
 
 export default function TradePage() {
   const currentMarket = useMarketStore(s => s.currentMarket);
@@ -14,6 +42,7 @@ export default function TradePage() {
   const setBook = useMarketStore(s => s.setBook);
   const setIndexPrice = useMarketStore(s => s.setIndexPrice);
   const setLastTradePrice = useMarketStore(s => s.setLastTradePrice);
+  const setTrades = useMarketStore(s => s.setTrades);
 
   const { data: depth } = useQuery({
     queryKey: ['depth', currentMarket],
@@ -22,19 +51,22 @@ export default function TradePage() {
     retry: false,
   });
 
+  const { data: tradesResponse } = useQuery({
+    queryKey: ['trades', currentMarket],
+    queryFn: () => fetchTrades(currentMarket),
+    refetchInterval: 2_000,
+    retry: false,
+  });
+
   useEffect(() => {
-    if (depth) {
-      if (depth.bids && depth.asks) {
-        setBook(depth.bids, depth.asks);
-      }
-      if (depth.indexPrice) {
-        setIndexPrice(depth.indexPrice);
-      }
-      if (depth.lastTradePrice) {
-        setLastTradePrice(depth.lastTradePrice);
-      }
-    }
+    syncDepthToStore(depth, setBook, setIndexPrice, setLastTradePrice);
   }, [depth, setBook, setIndexPrice, setLastTradePrice]);
+
+  useEffect(() => {
+    if (tradesResponse?.trades && tradesResponse.trades.length > 0) {
+      setTrades(mapTrades(tradesResponse.trades));
+    }
+  }, [tradesResponse, setTrades]);
 
   return (
     <div className="flex flex-col h-full w-full min-h-0 min-w-0 overflow-hidden bg-[#0A0D14]">
