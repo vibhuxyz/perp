@@ -10,9 +10,10 @@ export type { StatementRecord, FilterTab, TimeframeFilter, SortField, SortDirect
 
 interface AccountActivitySectionProps {
   transactions: StatementRecord[];
+  currentBalance?: number;
 }
 
-export function AccountActivitySection({ transactions }: AccountActivitySectionProps) {
+export function AccountActivitySection({ transactions, currentBalance }: AccountActivitySectionProps) {
   const {
     activeFilter,
     setActiveFilter,
@@ -26,7 +27,7 @@ export function AccountActivitySection({ transactions }: AccountActivitySectionP
     handleCopyRef,
     handleSortToggle,
     filteredAndSorted,
-  } = useActivityData(transactions);
+  } = useActivityData(transactions, currentBalance);
 
   const tabs: { id: FilterTab; label: string; count: number }[] = [
     { id: 'all', label: 'All', count: counts.all },

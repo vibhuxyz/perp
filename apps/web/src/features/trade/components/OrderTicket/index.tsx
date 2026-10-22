@@ -96,7 +96,7 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
 
   const handlePercentChange = (pct: number) => {
     setPercent(pct);
-    const available = equity?.availableBalance ? parseFloat(equity.availableBalance) : 10000;
+    const available = equity?.availableBalance ? parseFloat(equity.availableBalance) : 0;
     const priceNum = parseFloat(effectivePrice) || (indexPrice ? parseFloat(indexPrice) : 0);
     if (priceNum <= 0) return;
     if (pct === 0) {
@@ -113,7 +113,7 @@ export function OrderTicket({ indexPrice }: { indexPrice: string | null }) {
     const priceNum = parseFloat(effectivePrice) || (indexPrice ? parseFloat(indexPrice) : 0);
     if (priceNum <= 0) return;
     const numVal = parseFloat(cleanVal);
-    const available = equity?.availableBalance ? parseFloat(equity.availableBalance) : 10000;
+    const available = equity?.availableBalance ? parseFloat(equity.availableBalance) : 0;
     const maxVal = available * currentLeverage;
     if (isNaN(numVal) || numVal <= 0) {
       form.setValue('quantity', '0');

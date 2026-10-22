@@ -172,7 +172,7 @@ router.get("/account/activity", (req, res) => {
     const userId = String(req.userId);
     const userFills = fills.filter(f => f.takerUserId === userId || f.makerUserId === userId);
     const collateral = exchange.ledger.usersCollateral.get(userId);
-    const available = collateral ? Number(collateral.availableBalance) : 10000;
+    const available = collateral ? Number(collateral.availableBalance) : 0;
     return res.json(buildAccountActivity(userId, userFills, available));
   });
 });
@@ -183,16 +183,18 @@ router.get("/equity", (req, res) => {
 
   return authMiddleware(req, res, async () => {
     const userId = String(req.userId);
+    const collateral = exchange.ledger.usersCollateral.get(userId);
+    if (collateral) {
+      return res.json({
+        availableBalance: collateral.availableBalance.toString(),
+        marginLocked: collateral.marginLocked.toString(),
+      });
+    }
+
     const cached = await getCachedBalance<{ availableBalance: string; marginLocked: string }>(userId);
     if (cached) return res.json(cached);
 
-    let collateral = exchange.ledger.usersCollateral.get(userId);
-    if (!collateral) collateral = exchange.deposit(userId, 10_000n);
-
-    return res.json({
-      availableBalance: collateral.availableBalance.toString(),
-      marginLocked: collateral.marginLocked.toString(),
-    });
+    return res.json({ availableBalance: "0", marginLocked: "0" });
   });
 });
 

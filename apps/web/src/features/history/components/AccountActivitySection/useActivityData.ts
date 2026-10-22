@@ -31,7 +31,30 @@ function compareByField(a: StatementRecord, b: StatementRecord, field: SortField
   return a.balance - b.balance;
 }
 
-export function useActivityData(transactions: StatementRecord[]) {
+function computeActivityTotals(transactions: StatementRecord[]) {
+  let moneyAdded = 0;
+  let onRampCount = 0;
+  let marginUsed = 0;
+  let realizedPnL = 0;
+  let feesFunding = 0;
+
+  for (const tx of transactions) {
+    if (tx.type === 'deposit') {
+      moneyAdded += tx.amount;
+      onRampCount += 1;
+    } else if (tx.type === 'margin_locked') {
+      marginUsed += Math.abs(tx.amount);
+    } else if (tx.type === 'pnl_credit' || tx.type === 'pnl_debit') {
+      realizedPnL += tx.amount;
+    } else if (tx.type === 'fee' || tx.type === 'funding') {
+      feesFunding += Math.abs(tx.amount);
+    }
+  }
+
+  return { moneyAdded, onRampCount, marginUsed, realizedPnL, feesFunding };
+}
+
+export function useActivityData(transactions: StatementRecord[], currentBalance?: number) {
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [timeframe, setTimeframe] = useState<TimeframeFilter>('all');
@@ -51,34 +74,12 @@ export function useActivityData(transactions: StatementRecord[]) {
   );
 
   const summaryMetrics = useMemo(() => {
-    let moneyAdded = 0;
-    let onRampCount = 0;
-    let marginUsed = 0;
-    let realizedPnL = 0;
-    let feesFunding = 0;
-
-    for (const tx of transactions) {
-      if (tx.type === 'deposit') {
-        moneyAdded += tx.amount;
-        onRampCount += 1;
-      } else if (tx.type === 'margin_locked') {
-        marginUsed += Math.abs(tx.amount);
-      } else if (tx.type === 'pnl_credit' || tx.type === 'pnl_debit') {
-        realizedPnL += tx.amount;
-      } else if (tx.type === 'fee' || tx.type === 'funding') {
-        feesFunding += Math.abs(tx.amount);
-      }
-    }
-
+    const totals = computeActivityTotals(transactions);
     return {
-      moneyAdded,
-      onRampCount,
-      marginUsed,
-      realizedPnL,
-      feesFunding,
-      availableBalance: transactions[0]?.balance ?? 25804.7,
+      ...totals,
+      availableBalance: currentBalance !== undefined ? currentBalance : (transactions[0]?.balance ?? 0),
     };
-  }, [transactions]);
+  }, [transactions, currentBalance]);
 
   const handleCopyRef = (refId: string) => {
     navigator.clipboard.writeText(refId);

@@ -36,6 +36,7 @@ export function AddMoneyModal({ isOpen, onClose, currentBalance }: AddMoneyModal
     mutationFn: (amt: string) => deposit(amt),
     onSuccess: (_, amt) => {
       queryClient.invalidateQueries({ queryKey: ['equity'] });
+      queryClient.invalidateQueries({ queryKey: ['accountActivity'] });
       setIsSuccess(true);
       setRecentPayments(prev => [buildDepositRecord(amt), ...prev.slice(0, 4)]);
 

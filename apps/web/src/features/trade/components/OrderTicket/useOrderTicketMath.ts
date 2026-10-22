@@ -72,7 +72,9 @@ export function useOrderTicketMath({
   }, [orderValueUSDT]);
 
   const availableMarginNum = useMemo(() => {
-    return availableBalance ? parseFloat(availableBalance) : 97569.5;
+    if (!availableBalance) return 0;
+    const num = parseFloat(availableBalance);
+    return isNaN(num) ? 0 : num;
   }, [availableBalance]);
 
   const requiredMarginNum = useMemo(() => {
@@ -81,7 +83,8 @@ export function useOrderTicketMath({
   }, [requiredMargin]);
 
   const marginUtilizationPct = useMemo(() => {
-    if (availableMarginNum <= 0 || requiredMarginNum <= 0) return 0;
+    if (requiredMarginNum <= 0) return 0;
+    if (availableMarginNum <= 0) return 100;
     return (requiredMarginNum / availableMarginNum) * 100;
   }, [requiredMarginNum, availableMarginNum]);
 
