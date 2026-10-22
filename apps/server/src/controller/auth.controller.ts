@@ -10,16 +10,19 @@ import bcrypt from "bcryptjs";
 import { publishCommand } from "../kafka/producer";
 import { signAuthTokens, authErrorMessage } from "../lib/authTokens";
 
+function setAuthCookies(res: Response, token: string, refreshToken: string): void {
+  const isProd = process.env.NODE_ENV === "production";
+  res.cookie("token", token, { httpOnly: true, secure: isProd, sameSite: "strict", maxAge: 7 * 86400000 });
+  res.cookie("refreshToken", refreshToken, { httpOnly: true, secure: isProd, sameSite: "strict", maxAge: 30 * 86400000 });
+}
+
 async function findUserByEmailOrUsername(email?: string, username?: string) {
   if (email) {
     const [found] = await db.select().from(usersTable).where(eq(usersTable.email, email));
     return found;
   }
   if (username) {
-    const [found] = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.username, username));
+    const [found] = await db.select().from(usersTable).where(eq(usersTable.username, username));
     return found;
   }
   return null;
@@ -27,130 +30,69 @@ async function findUserByEmailOrUsername(email?: string, username?: string) {
 
 export const signUp = async (req: Request, res: Response) => {
   const result = userSignUpSchema.safeParse(req.body);
-
   if (!result.success) {
-    return res.status(400).json({
-      success: false,
-      message: "Validation failed",
-      errors: result.error.issues.map(i => i.message),
-    });
+    return res.status(400).json({ success: false, message: "Validation failed", errors: result.error.issues.map(i => i.message) });
   }
 
   const { email, password } = result.data;
   const username = result.data.username || email.split("@")[0];
 
   try {
-    const [existingUser] = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.email, email));
-
+    const [existingUser] = await db.select().from(usersTable).where(eq(usersTable.email, email));
     if (existingUser) {
-      return res.status(409).json({
-        success: false,
-        msg: "A user with this email already exists",
-      });
+      return res.status(409).json({ success: false, msg: "User with this email already exists" });
     }
 
-    const hashPassword = await bcrypt.hash(password, 10);
-
-    const [newUser] = await db
-      .insert(usersTable)
-      .values({
-        email,
-        username,
-        password: hashPassword,
-      })
-      .returning({
-        id: usersTable.id,
-        email: usersTable.email,
-        username: usersTable.username,
-        isAdmin: usersTable.isAdmin,
-        created_at: usersTable.created_at,
-      });
-
-    if (!newUser) {
-      return res.status(500).json({ success: false, msg: "Failed to create user" });
-    }
-
-    await db.insert(collateralTable).values({
-      id: crypto.randomUUID(),
-      userId: String(newUser.id),
-      availableBalance: "0",
-      locked: "0",
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const [createdUser] = await db.insert(usersTable).values({ email, password: hashedPassword, username }).returning({
+      id: usersTable.id,
+      email: usersTable.email,
+      username: usersTable.username,
+      isAdmin: usersTable.isAdmin,
     });
 
+    if (!createdUser) {
+      return res.status(500).json({ success: false, msg: "Failed to create user record" });
+    }
+
+    const newUser = { id: createdUser.id, email: createdUser.email, username: createdUser.username, isAdmin: createdUser.isAdmin };
+    await db.insert(collateralTable).values({ userId: String(createdUser.id), availableBalance: "0", locked: "0" });
     const { token, refreshToken } = signAuthTokens(newUser);
+    setAuthCookies(res, token, refreshToken);
 
-    return res.status(201).json({
-      success: true,
-      msg: "User registered successfully",
-      token,
-      accessToken: token,
-      refreshToken,
-      user: newUser,
-    });
+    return res.status(201).json({ success: true, msg: "User registered successfully", token, accessToken: token, refreshToken, user: newUser });
   } catch (err) {
     console.error("[Auth] Signup error:", err);
-    return res.status(500).json({
-      success: false,
-      msg: authErrorMessage(err, "Failed to create account"),
-    });
+    return res.status(500).json({ success: false, msg: authErrorMessage(err, "Failed to create account") });
   }
 };
 
 export const signIn = async (req: Request, res: Response) => {
   const result = userSignInSchema.safeParse(req.body);
-
   if (!result.success) {
-    return res.status(400).json({
-      success: false,
-      message: "Validation failed",
-      errors: result.error.issues.map(i => i.message),
-    });
+    return res.status(400).json({ success: false, message: "Validation failed", errors: result.error.issues.map(i => i.message) });
   }
 
   const { email, username, password } = result.data;
 
   try {
     const existingUser = await findUserByEmailOrUsername(email, username);
-
-    const DUMMY_HASH =
-      "$2a$10$vI8aWBnW3fID.ZQ4/zo1G.q1lRps.9cGLcZEiGDMVr5yUP1KUOYTa";
-
+    const DUMMY_HASH = "$2a$10$vI8aWBnW3fID.ZQ4/zo1G.q1lRps.9cGLcZEiGDMVr5yUP1KUOYTa";
     const hashToCompare = existingUser?.password || DUMMY_HASH;
     const isCorrect = await bcrypt.compare(password, hashToCompare);
 
     if (!existingUser || !isCorrect) {
-      return res.status(401).json({
-        success: false,
-        msg: "Invalid email/username or password",
-      });
+      return res.status(401).json({ success: false, msg: "Invalid email/username or password" });
     }
 
     const { token, refreshToken } = signAuthTokens(existingUser);
+    setAuthCookies(res, token, refreshToken);
+    const user = { id: existingUser.id, email: existingUser.email, username: existingUser.username, isAdmin: existingUser.isAdmin };
 
-    const user = {
-      id: existingUser.id,
-      email: existingUser.email,
-      username: existingUser.username,
-      isAdmin: existingUser.isAdmin,
-    };
-
-    return res.status(200).json({
-      success: true,
-      msg: "Signed in successfully",
-      token,
-      accessToken: token,
-      refreshToken,
-      user,
-    });
+    return res.status(200).json({ success: true, msg: "Signed in successfully", token, accessToken: token, refreshToken, user });
   } catch (err) {
     console.error("[Auth] Signin error:", err);
-    return res.status(500).json({
-      success: false,
-      msg: authErrorMessage(err, "Failed to sign in"),
-    });
+    return res.status(500).json({ success: false, msg: authErrorMessage(err, "Failed to sign in") });
   }
 };
 
@@ -161,33 +103,24 @@ export const getMe = async (req: Request, res: Response) => {
   }
 
   try {
-    const [user] = await db
-      .select({
-        id: usersTable.id,
-        email: usersTable.email,
-        username: usersTable.username,
-        isAdmin: usersTable.isAdmin,
-        created_at: usersTable.created_at,
-      })
-      .from(usersTable)
-      .where(eq(usersTable.id, Number(userId)));
+    const [user] = await db.select({
+      id: usersTable.id,
+      email: usersTable.email,
+      username: usersTable.username,
+      isAdmin: usersTable.isAdmin,
+      created_at: usersTable.created_at,
+    }).from(usersTable).where(eq(usersTable.id, Number(userId)));
 
     if (!user) {
       return res.status(404).json({ success: false, msg: "User not found" });
     }
 
-    const [collateral] = await db
-      .select()
-      .from(collateralTable)
-      .where(eq(collateralTable.userId, String(user.id)));
+    const [collateral] = await db.select().from(collateralTable).where(eq(collateralTable.userId, String(user.id)));
 
     return res.status(200).json({
       success: true,
       user,
-      collateral: collateral || {
-        availableBalance: "0",
-        locked: "0",
-      },
+      collateral: collateral || { availableBalance: "0", locked: "0" },
     });
   } catch (err) {
     console.error("[Auth] GetMe error:", err);
@@ -197,24 +130,16 @@ export const getMe = async (req: Request, res: Response) => {
 
 export const createMarket = async (req: Request, res: Response) => {
   const result = marketSchema.safeParse(req.body);
-
   if (!result.success) {
-    return res.json({
-      errors: result.error.issues.map(i => i.message),       });
+    return res.json({ errors: result.error.issues.map(i => i.message) });
   }
   const { symbol, imageUrl } = result.data;
 
   try {
-    await db
-      .insert(marketTable)
-      .values({
-        symbol,
-        imageUrl,
-      })
-      .onConflictDoUpdate({
-        target: marketTable.symbol,
-        set: { imageUrl },
-      });
+    await db.insert(marketTable).values({ symbol, imageUrl }).onConflictDoUpdate({
+      target: marketTable.symbol,
+      set: { imageUrl },
+    });
 
     await publishCommand("CREATE_MARKET", { symbol, imageUrl }, symbol);
 

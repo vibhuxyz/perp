@@ -6,6 +6,8 @@
     "dev": "turbo run dev",
     "clean:ports": "kill -9 $(lsof -ti :5173,6000,7070,8080) 2>/dev/null || true",
     "lint": "turbo run lint",
+    "test": "bun apps/engine/tests/test.engine.ts",
+    "test:all": "for f in apps/engine/tests/test.*.ts; do echo \"=== $f ===\"; bun \"$f\" || exit 1; done",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",
     "db:generate": "cd packages/db && bunx prisma generate",
@@ -13,6 +15,7 @@
     "db:seed": "cd packages/db-mongo && bun run db:seed"
   },
   "devDependencies": {
+    "@repo/shared": "workspace:*",
     "prettier": "^3.7.4",
     "turbo": "^2.9.14",
     "typescript": "5.9.2"

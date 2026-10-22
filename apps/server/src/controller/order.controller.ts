@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import type { Order } from "engine";
 import { orderSchema } from "../vallidation/order.validate";
-import { exchange, recordFills, broadcastDepth, broadcastTicker } from "../exchange";
+import { exchange, recordFills, broadcastDepth, broadcastTicker, fills } from "../exchange";
 import { publishCommand } from "../kafka/producer";
 
 export const createOrder = async (req: Request, res: Response) => {
@@ -110,6 +110,28 @@ export const getOpenOrders = async (req: Request, res: Response) => {
       leverage: o.leverage.toString(),
       status: o.status,
       createdAt: o.createdAt.toISOString(),
+    })),
+  );
+};
+
+export const getOrderHistory = async (req: Request, res: Response) => {
+  const userId = req.userId;
+  if (!userId) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const userFills = fills.filter(f => f.takerUserId === String(userId) || f.makerUserId === String(userId));
+  const limit = Math.min(Math.max(1, Number(req.query.limit) || 50), 100);
+
+  return res.status(200).json(
+    userFills.slice(-limit).reverse().map(f => ({
+      orderId: f.takerUserId === String(userId) ? f.takerOrderId : f.makerOrderId,
+      market: f.market,
+      price: f.price.toString(),
+      quantity: f.quantity.toString(),
+      role: f.takerUserId === String(userId) ? "TAKER" : "MAKER",
+      status: "filled",
+      createdAt: f.createdAt.toISOString(),
     })),
   );
 };

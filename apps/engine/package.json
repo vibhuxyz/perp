@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
+    "@repo/shared": "workspace:*",
     "@repo/types": "workspace:*",
     "@types/bun": "latest",
     "eslint": "^9.39.1"

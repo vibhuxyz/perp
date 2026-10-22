@@ -2,9 +2,11 @@
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
   "globalEnv": [
+    "NODE_ENV",
     "ACCESS_TOKEN_JWT_SECRET_KEY",
     "JWT_SECRET",
-    "REFRESH_TOKEN_JWT_SECRET_KEY"
+    "REFRESH_TOKEN_JWT_SECRET_KEY",
+    "WS_PORT"
   ],
   "tasks": {
     "build": {

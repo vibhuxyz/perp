@@ -1,23 +1,35 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 
+function parseCookie(cookieHeader?: string, name = "token"): string | undefined {
+  if (!cookieHeader) return undefined;
+  for (const part of cookieHeader.split(";")) {
+    const [k, ...v] = part.trim().split("=");
+    if (k === name) {
+      return decodeURIComponent(v.join("="));
+    }
+  }
+  return undefined;
+}
+
 export function authMiddleware(
   req: Request,
   res: Response,
   next: NextFunction,
 ) {
-  const authHeader = (req.headers.authorization || req.headers.token) as string;
+  const cookieToken = parseCookie(req.headers.cookie, "token");
+  const rawAuth = (req.headers.authorization || req.headers.token || cookieToken) as string | undefined;
 
-  if (!authHeader) {
+  if (!rawAuth) {
     return res.status(401).json({
       success: false,
       message: "Authentication token missing",
     });
   }
 
-  const token = authHeader.startsWith("Bearer ")
-    ? authHeader.slice(7).trim()
-    : authHeader.trim();
+  const token = rawAuth.startsWith("Bearer ")
+    ? rawAuth.slice(7).trim()
+    : rawAuth.trim();
 
   const secret =
     process.env.ACCESS_TOKEN_JWT_SECRET_KEY ||
@@ -43,4 +55,3 @@ export function authMiddleware(
     });
   }
 }
-

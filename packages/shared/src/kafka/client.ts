@@ -1,5 +1,6 @@
 import type { Producer, Consumer, KafkaMessage } from "kafkajs";
 import { Kafka, Partitioners } from "kafkajs";
+import { getMarketPartition } from "./partition";
 
 export const kafka = new Kafka({
   clientId: "perp",
@@ -23,11 +24,19 @@ export const sendMessage = async (
   topic: string,
   message: object,
   key?: string,
+  partition?: number,
 ) => {
   const producer = await getProducer();
+  const targetPartition = partition ?? (key ? getMarketPartition(key) : undefined);
   await producer.send({
     topic,
-    messages: [{ key: key || "default", value: JSON.stringify(message) }],
+    messages: [
+      {
+        key: key || "default",
+        value: JSON.stringify(message),
+        ...(targetPartition !== undefined ? { partition: targetPartition } : {}),
+      },
+    ],
   });
 };
 

@@ -14,6 +14,7 @@ export async function publishCommand(
   type: string,
   payload: object,
   key: string,
+  partition?: number,
 ) {
   await sendMessage(
     "order.commands",
@@ -24,5 +25,6 @@ export async function publishCommand(
       commandId: crypto.randomUUID(),
     },
     key,
+    partition,
   );
 }
