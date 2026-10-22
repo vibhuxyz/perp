@@ -110,3 +110,5 @@ export async function startDbWriterConsumer(): Promise<() => Promise<void>> {
     }
   };
 }
+
+export const startDbWriterWorker = startDbWriterConsumer;

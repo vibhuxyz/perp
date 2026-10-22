@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import type { Collateral, Fill, Position } from "engine";
-import { startDbWriterWorker } from "./writer";
+import { startDbWriterConsumer } from "./writer";
 
 export * from "./writer";
 
@@ -25,5 +25,5 @@ export async function snapshot(state: ExchangeState, fills: Fill[], path: string
 }
 
 if (import.meta.main) {
-  startDbWriterWorker().catch(console.error);
+  startDbWriterConsumer().catch(console.error);
 }
