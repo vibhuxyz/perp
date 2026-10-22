@@ -18,7 +18,10 @@ function matchesSearch(tx: StatementRecord, query: string): boolean {
 }
 
 function matchesTimeframe(tx: StatementRecord, timeframe: TimeframeFilter): boolean {
-  if (timeframe === 'today') return tx.timestamp.startsWith('2026-09-13');
+  if (timeframe === 'today') {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return tx.timestamp.startsWith(todayStr);
+  }
   return true;
 }
 

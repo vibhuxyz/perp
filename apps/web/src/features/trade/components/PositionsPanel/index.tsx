@@ -6,11 +6,15 @@ import { useMarketStore } from '@/stores/market.store';
 import { useAccountStore } from '@/stores/account.store';
 import { AuthModal } from '@/features/auth/AuthModal';
 import { TabsHeader } from './TabsHeader';
-import { TABS } from './tabs';
 import { SignedOutState } from './SignedOutState';
 import { PositionsTable } from './PositionsTable';
 import { OpenOrdersTable } from './OpenOrdersTable';
-import { NoPositionsState, OtherTabEmptyState } from './EmptyStates';
+import { FillsTable } from './FillsTable';
+import { OrderHistoryTable } from './OrderHistoryTable';
+import { PositionHistoryTable } from './PositionHistoryTable';
+import { BorrowsView } from './BorrowsView';
+import { TwapView } from './TwapView';
+import { NoPositionsState } from './EmptyStates';
 
 export function PositionsPanel() {
   const navigate = useNavigate();
@@ -37,6 +41,7 @@ export function PositionsPanel() {
       queryClient.invalidateQueries({ queryKey: ['positions'] });
       queryClient.invalidateQueries({ queryKey: ['equity'] });
       queryClient.invalidateQueries({ queryKey: ['depth'] });
+      queryClient.invalidateQueries({ queryKey: ['positionHistory'] });
     },
   });
 
@@ -47,8 +52,6 @@ export function PositionsPanel() {
       setIsAuthOpen(true);
     }
   };
-
-  const activeTabLabel = TABS.find(t => t.id === activeTab)?.label ?? 'this tab';
 
   return (
     <>
@@ -72,8 +75,16 @@ export function PositionsPanel() {
               )
             ) : activeTab === 'orders' ? (
               <OpenOrdersTable token={token} />
+            ) : activeTab === 'fills' ? (
+              <FillsTable token={token} />
+            ) : activeTab === 'orderHistory' ? (
+              <OrderHistoryTable token={token} />
+            ) : activeTab === 'posHistory' ? (
+              <PositionHistoryTable token={token} />
+            ) : activeTab === 'borrows' ? (
+              <BorrowsView token={token} />
             ) : (
-              <OtherTabEmptyState tabLabel={activeTabLabel} onViewHistory={() => navigate('/history')} />
+              <TwapView />
             )}
           </div>
         )}

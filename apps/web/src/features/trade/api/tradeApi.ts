@@ -130,3 +130,72 @@ export type CandleItem = z.infer<typeof candleItemSchema>;
 
 export const fetchCandles = (market: string, limit = 100) =>
   api(`/api/candles?market=${market}&limit=${limit}`, z.array(candleItemSchema));
+
+const userFillSchema = z.object({
+  fillId: z.string(),
+  orderId: z.string().optional(),
+  market: z.string(),
+  price: z.string(),
+  quantity: z.string(),
+  side: z.string(),
+  role: z.string(),
+  fee: z.string().optional(),
+  createdAt: z.string(),
+});
+
+export type UserFill = z.infer<typeof userFillSchema>;
+
+export const fetchUserFills = () =>
+  api("/api/fills", z.array(userFillSchema));
+
+const orderHistoryItemSchema = z.object({
+  orderId: z.string(),
+  market: z.string(),
+  side: z.enum(["LONG", "SHORT"]),
+  type: z.string(),
+  price: z.string(),
+  quantity: z.string(),
+  filledQuantity: z.string().optional(),
+  leverage: z.string().optional(),
+  status: z.string(),
+  createdAt: z.string(),
+});
+
+export type OrderHistoryItem = z.infer<typeof orderHistoryItemSchema>;
+
+export const fetchOrderHistory = () =>
+  api("/api/orders/history", z.array(orderHistoryItemSchema));
+
+const positionHistoryItemSchema = z.object({
+  id: z.string(),
+  market: z.string(),
+  side: z.enum(["LONG", "SHORT"]),
+  size: z.string(),
+  entryPrice: z.string(),
+  closePrice: z.string(),
+  realizedPnL: z.string(),
+  closedAt: z.string(),
+});
+
+export type PositionHistoryItem = z.infer<typeof positionHistoryItemSchema>;
+
+export const fetchPositionHistory = () =>
+  api("/api/positions/history", z.array(positionHistoryItemSchema));
+
+const accountActivityItemSchema = z.object({
+  id: z.string(),
+  type: z.enum(["deposit", "margin_locked", "pnl_credit", "pnl_debit", "fee", "funding"]),
+  title: z.string(),
+  description: z.string(),
+  category: z.enum(["Added", "Margin", "Credit", "Debit", "Fee"]),
+  amount: z.number(),
+  balance: z.number(),
+  status: z.enum(["Completed", "Settled"]),
+  refId: z.string(),
+  timestamp: z.string(),
+});
+
+export type AccountActivityItem = z.infer<typeof accountActivityItemSchema>;
+
+export const fetchAccountActivity = () =>
+  api("/api/account/activity", z.array(accountActivityItemSchema));

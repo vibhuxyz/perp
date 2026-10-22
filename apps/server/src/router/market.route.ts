@@ -10,10 +10,15 @@ import {
   feed,
   fills,
 } from "../exchange";
-import { getCachedPositions, getCachedBalance } from "@repo/shared";
+import { getCachedBalance } from "@repo/shared";
 import { db, candlesTable } from "@repo/db";
 import { desc, eq } from "drizzle-orm";
 import { generateFallbackCandles } from "./candle.helper";
+import {
+  closedPositionsHistory,
+  recordClosedPosition,
+  buildAccountActivity,
+} from "./history.helper";
 
 const router = express.Router();
 
@@ -104,11 +109,8 @@ router.get("/positions", (req, res) => {
   const authHeader = (req.headers.authorization || req.headers.token) as string;
   if (!authHeader) return res.json([]);
 
-  return authMiddleware(req, res, async () => {
+  return authMiddleware(req, res, () => {
     const userId = String(req.userId);
-    const cached = await getCachedPositions<unknown[]>(userId);
-    if (cached) return res.json(cached);
-
     const positions = exchange.ledger.userPositions.get(userId) ?? [];
     return res.json(positions.map(p => ({
       market: p.market,
@@ -118,6 +120,17 @@ router.get("/positions", (req, res) => {
       margin: p.margin.toString(),
       liquidationPrice: p.liquidationPrice.toString(),
     })));
+  });
+});
+
+router.get("/positions/history", (req, res) => {
+  const authHeader = (req.headers.authorization || req.headers.token) as string;
+  if (!authHeader) return res.json([]);
+
+  return authMiddleware(req, res, () => {
+    const userId = String(req.userId);
+    const history = closedPositionsHistory.filter(p => p.userId === userId);
+    return res.json(history.slice(-50).reverse());
   });
 });
 
@@ -137,8 +150,30 @@ router.post("/positions/close", (req, res) => {
     const pnl = calculatePnL(position, indexPrice);
     exchange.ledger.settlePnL(userId, pnl, position.margin);
     exchange.ledger.closePosition(userId, market);
+    recordClosedPosition(
+      userId,
+      position.market,
+      position.side,
+      position.quantity,
+      position.averagePrice,
+      indexPrice,
+      pnl,
+    );
     feed.broadcast({ type: "liquidation", position });
     return res.json({ success: true });
+  });
+});
+
+router.get("/account/activity", (req, res) => {
+  const authHeader = (req.headers.authorization || req.headers.token) as string;
+  if (!authHeader) return res.json([]);
+
+  return authMiddleware(req, res, () => {
+    const userId = String(req.userId);
+    const userFills = fills.filter(f => f.takerUserId === userId || f.makerUserId === userId);
+    const collateral = exchange.ledger.usersCollateral.get(userId);
+    const available = collateral ? Number(collateral.availableBalance) : 10000;
+    return res.json(buildAccountActivity(userId, userFills, available));
   });
 });
 
