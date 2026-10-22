@@ -1,0 +1,99 @@
+name: CI/CD Pipeline & EC2 Deployment
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Lint, Typecheck & Invariant Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Turbo lint, check-types, build
+        run: bun x turbo run lint check-types build
+
+      - name: Run Engine Invariant, Solvency & Recovery Tests
+        run: |
+          for f in apps/engine/tests/test.*.ts; do
+            echo "Running test suite: $f"
+            bun "$f"
+          done
+
+  deploy:
+    name: Deploy to AWS EC2
+    needs: [verify]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to EC2 via SSH
+        env:
+          EC2_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'prod-perp-jwt-secret-key-32chars-min' }}
+        run: |
+          ssh ${EC2_USER}@${EC2_HOST} << 'EOF'
+            set -e
+
+            APP_DIR="/opt/perp"
+            sudo mkdir -p ${APP_DIR}
+            sudo chown -R $USER:$USER ${APP_DIR}
+
+            if [ ! -d "${APP_DIR}/.git" ]; then
+              git clone https://github.com/${{ github.repository }}.git ${APP_DIR}
+            fi
+
+            cd ${APP_DIR}
+            git fetch --all
+            git reset --hard origin/main
+
+            cat << 'ENVFILE' > ${APP_DIR}/.env
+            NODE_ENV=production
+            JWT_SECRET=${JWT_SECRET}
+            ACCESS_TOKEN_JWT_SECRET_KEY=${JWT_SECRET}
+            REFRESH_TOKEN_JWT_SECRET_KEY=${JWT_SECRET}
+            WS_PORT=7070
+            PORT=3000
+            API_GATEWAY_PORT=8080
+            DATABASE_URL=postgresql://perp:password@timescaledb:5432/perp_db
+            REDIS_URL=redis://redis:6379
+            KAFKA_BROKERS=kafka:9092
+            WAL_PATH=/data/engine.wal
+          ENVFILE
+
+            sudo usermod -aG docker $USER || true
+
+            docker compose -f infrastructure/compose/docker-compose.prod.yml build
+            docker compose -f infrastructure/compose/docker-compose.prod.yml up -d --remove-orphans
+
+            echo "Awaiting services health..."
+            sleep 10
+            docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+            docker image prune -f
+          EOF
