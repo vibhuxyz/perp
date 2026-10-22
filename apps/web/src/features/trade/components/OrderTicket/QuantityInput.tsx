@@ -14,7 +14,7 @@ export function QuantityInput({ register }: { register: UseFormRegister<OrderFor
           id="order-size"
           {...register('quantity')}
           placeholder="0"
-          className="w-full bg-transparent text-base font-semibold text-white font-mono tabular-nums placeholder:text-text-muted focus:outline-none"
+          className="w-full bg-transparent text-base font-semibold text-white font-mono tabular-nums placeholder:text-text-muted border-none outline-none ring-0 shadow-none focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
         />
         <MarketIcon symbol={currentMarket} className="h-6 w-6 ml-2 select-none" />
       </div>

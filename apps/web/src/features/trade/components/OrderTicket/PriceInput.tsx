@@ -44,7 +44,7 @@ export function PriceInput({
           {...register('price')}
           disabled={isMarketOrder}
           placeholder={isMarketOrder ? 'Market price' : indexPrice ? formatPrice(indexPrice) : '0.0'}
-          className="w-full bg-transparent text-base font-semibold text-white font-mono tabular-nums placeholder:text-text-muted focus:outline-none disabled:opacity-50"
+          className="w-full bg-transparent text-base font-semibold text-white font-mono tabular-nums placeholder:text-text-muted border-none outline-none ring-0 shadow-none focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 disabled:opacity-50"
         />
         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#10B981] text-white font-bold text-xs shadow-xs ml-2 select-none">
           $

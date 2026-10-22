@@ -8,7 +8,7 @@ export function OrderValueInput({ value, onChange }: { value: string; onChange: 
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder="0"
-          className="w-full bg-transparent text-base font-semibold text-white font-mono tabular-nums placeholder:text-text-muted focus:outline-none"
+          className="w-full bg-transparent text-base font-semibold text-white font-mono tabular-nums placeholder:text-text-muted border-none outline-none ring-0 shadow-none focus:border-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
         />
         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#10B981] text-white font-bold text-xs shadow-xs ml-2 select-none">
           $

@@ -118,6 +118,7 @@ table,
 /* ── Form reset ──────────────────────────────────────────────────── */
 input,
 select,
+textarea,
 button {
   font: inherit;
   color: inherit;
@@ -125,10 +126,26 @@ button {
   outline: none;
 }
 
+input,
+textarea {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 button { cursor: pointer; }
 
 /* ── Focus ring ──────────────────────────────────────────────────── */
-:focus-visible {
+:focus-visible:not(input):not(textarea) {
   outline: 2px solid var(--color-brand);
   outline-offset: 1px;
 }
