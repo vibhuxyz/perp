@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { X, Bell, Trash2, TrendingUp, TrendingDown, CheckCircle2 } from 'lucide-react';
 import { useChartSettingsStore } from '@/stores/chartSettings.store';
 
@@ -13,11 +13,16 @@ export function AlertModal({
   currentPrice: number;
   market: string;
 }) {
-  const alerts = useChartSettingsStore(s => s.alerts.filter(a => a.market === market));
+  const allAlerts = useChartSettingsStore(s => s.alerts);
   const addAlert = useChartSettingsStore(s => s.addAlert);
   const removeAlert = useChartSettingsStore(s => s.removeAlert);
 
-  const [priceInput, setPriceInput] = useState(() => currentPrice.toFixed(1));
+  const alerts = useMemo(
+    () => allAlerts.filter(a => a.market === market),
+    [allAlerts, market]
+  );
+
+  const [priceInput, setPriceInput] = useState(() => (currentPrice > 0 ? currentPrice.toFixed(1) : ''));
   const [condition, setCondition] = useState<'ABOVE' | 'BELOW'>('ABOVE');
   const [createdMessage, setCreatedMessage] = useState<string | null>(null);
 

@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import { AppShell } from "@/app/layout/AppShell";
 import { QueryProvider } from "@/app/providers/QueryProvider";
+import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
 
 const TradePage       = lazy(() => import("@/app/routes/TradePage"));
 const PositionsPage   = lazy(() => import("@/app/routes/PositionsPage"));
@@ -17,7 +18,8 @@ export default function App() {
   return (
     <QueryProvider>
       <BrowserRouter>
-        <Routes>
+        <ErrorBoundary>
+          <Routes>
           {/* Standalone Authentication Pages */}
           <Route path="register" element={<SignUpPage defaultMode="signup" />} />
           <Route path="signup" element={<SignUpPage defaultMode="signup" />} />
@@ -68,7 +70,8 @@ export default function App() {
             <Route path="*" element={<TradePage />} />
           </Route>
         </Routes>
-      </BrowserRouter>
+      </ErrorBoundary>
+    </BrowserRouter>
     </QueryProvider>
   );
 }

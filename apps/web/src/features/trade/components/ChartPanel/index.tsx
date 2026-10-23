@@ -143,12 +143,14 @@ export function ChartPanel() {
       />
 
       <IndicatorsModal isOpen={isIndicatorsOpen} onClose={() => setIsIndicatorsOpen(false)} />
-      <AlertModal
-        isOpen={isAlertOpen}
-        onClose={() => setIsAlertOpen(false)}
-        currentPrice={effectivePrice}
-        market={currentMarket}
-      />
+      {isAlertOpen && (
+        <AlertModal
+          isOpen={isAlertOpen}
+          onClose={() => setIsAlertOpen(false)}
+          currentPrice={effectivePrice}
+          market={currentMarket}
+        />
+      )}
     </div>
   );
 }
