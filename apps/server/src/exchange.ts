@@ -7,7 +7,7 @@ import {
   MarketMakerBot,
   type Fill,
 } from "engine";
-import { startPoller } from "mark-price-poller";
+import { startPoller, fetchBinancePrice } from "mark-price-poller";
 import { MarketFeed } from "@repo/ws";
 import { snapshot, recordTrade, recordCandle, cacheUserState } from "db-writer";
 import { sendMessage, TOPICS } from "@repo/shared";
@@ -130,8 +130,11 @@ export function recordFills(newFills: Fill[]): void {
   }
 }
 
+const marketMakers = new Map<SupportedMarket, MarketMakerBot>();
+const lastQuotedPrices = new Map<SupportedMarket, bigint>();
+
 function seedMarketLiquidity(m: SupportedMarket, startPrice: bigint) {
-  exchange.deposit("mm_bot", 20_000_000n);
+  exchange.deposit("mm_bot", 200_000_000n);
   const mm = new MarketMakerBot(exchange, {
     userId: "mm_bot",
     market: m,
@@ -140,11 +143,13 @@ function seedMarketLiquidity(m: SupportedMarket, startPrice: bigint) {
     orderSize: m === "BTC-PERP" ? 1n : m === "ETH-PERP" ? 10n : 50n,
   });
   mm.quote(startPrice);
+  marketMakers.set(m, mm);
+  lastQuotedPrices.set(m, startPrice);
 
-  exchange.deposit("trader_init", 1_000_000n);
+  exchange.deposit("trader_init", 10_000_000n);
   const initialFills = exchange.placeOrder({
     userId: "trader_init",
-    orderId: `init_trade_${m}`,
+    orderId: `init_trade_${m}_${Date.now()}`,
     market: m,
     side: "LONG",
     type: "MARKET",
@@ -161,19 +166,33 @@ export function start(): void {
   for (const m of MARKETS) {
     exchange.createMarket(m);
     const cfg = MARKET_CONFIGS[m];
-    seedMarketLiquidity(m, cfg.startPrice);
 
-    startPoller({ startPrice: cfg.startPrice, stepSize: cfg.stepSize, symbol: cfg.symbol }, price => {
-      indexPrices.set(m, price);
-      feed.broadcast({ type: "index", channel: `market:${m}`, market: m, price });
-      broadcastTicker(m);
+    void (async () => {
+      const livePrice = await fetchBinancePrice(cfg.symbol);
+      const initialPrice = livePrice ?? cfg.startPrice;
+      indexPrices.set(m, initialPrice);
+      seedMarketLiquidity(m, initialPrice);
 
-      for (const position of exchange.riskManager.checkLiquidations(m, price)) {
-        feed.broadcast({ type: "liquidation", channel: `market:${m}`, position });
-        void emitEngineEvent("liquidation", position, position.market);
-        broadcastDepth(m);
-      }
-    });
+      startPoller({ startPrice: initialPrice, stepSize: cfg.stepSize, symbol: cfg.symbol }, price => {
+        indexPrices.set(m, price);
+        feed.broadcast({ type: "index", channel: `market:${m}`, market: m, price });
+
+        const lastQuoted = lastQuotedPrices.get(m) ?? 0n;
+        const diff = price > lastQuoted ? price - lastQuoted : lastQuoted - price;
+        if (lastQuoted === 0n || (diff * 10_000n) / lastQuoted >= 10n) {
+          lastQuotedPrices.set(m, price);
+          marketMakers.get(m)?.quote(price);
+          broadcastDepth(m);
+        }
+        broadcastTicker(m);
+
+        for (const position of exchange.riskManager.checkLiquidations(m, price)) {
+          feed.broadcast({ type: "liquidation", channel: `market:${m}`, position });
+          void emitEngineEvent("liquidation", position, position.market);
+          broadcastDepth(m);
+        }
+      });
+    })();
   }
 
   setInterval(() => {

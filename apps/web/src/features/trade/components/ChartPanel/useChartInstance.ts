@@ -4,25 +4,29 @@ import {
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
+  PriceScaleMode,
   type IChartApi,
   type ISeriesApi,
   type UTCTimestamp,
 } from 'lightweight-charts';
 import type { Trade } from '@/stores/market.store';
 import type { CandleItem } from '@/features/trade/api/tradeApi';
+import type { ScaleMode } from './BottomRangeBar';
 import {
   resolveCandleData,
   type HoverData,
   type CandlestickData,
   type VolumeData,
 } from '../chartData';
-import { CHART_OPTIONS } from './chartOptions';
+import { CHART_OPTIONS, CANDLE_OPTIONS, LINE_OPTIONS, VOLUME_OPTIONS } from './chartOptions';
 import { hasCrosshairPoint, extractOhlc, buildHoverData } from './chartCrosshair';
 
 interface UseChartProps {
   chartContainerRef: RefObject<HTMLDivElement | null>;
   chartType: 'candles' | 'line';
   activeTimeframe: string;
+  activeRange?: string;
+  scaleMode?: ScaleMode;
   effectivePrice: number;
   lastTradePrice: string | null;
   indexPrice: string | null;
@@ -30,10 +34,15 @@ interface UseChartProps {
   realCandles?: CandleItem[];
 }
 
+const checkNeedsRefit = (f: boolean, pTf: string, tf: string, pR?: string, r?: string) =>
+  !f || pTf !== tf || pR !== r;
+
 export function useChartInstance({
   chartContainerRef,
   chartType,
   activeTimeframe,
+  activeRange,
+  scaleMode,
   effectivePrice,
   lastTradePrice,
   indexPrice,
@@ -48,6 +57,7 @@ export function useChartInstance({
   const lastVolumeRef = useRef<VolumeData | null>(null);
   const hasFittedRef = useRef(false);
   const lastTimeframeRef = useRef(activeTimeframe);
+  const lastRangeRef = useRef(activeRange);
   const effectivePriceRef = useRef(effectivePrice);
 
   useEffect(() => {
@@ -61,15 +71,14 @@ export function useChartInstance({
 
   const latestCandle: CandlestickData | null = useMemo(() => {
     if (!baseCandle) return null;
-    const hp = livePrice > 0 ? Math.max(baseCandle.high, livePrice) : baseCandle.high;
-    const lp = livePrice > 0 ? Math.min(baseCandle.low, livePrice) : baseCandle.low;
-    const cp = livePrice > 0 ? livePrice : baseCandle.close;
+    const isPlausible = livePrice > 0 && Math.abs(livePrice - baseCandle.close) / baseCandle.close < 0.2;
+    const validLive = isPlausible ? livePrice : baseCandle.close;
     return {
       time: baseCandle.time as UTCTimestamp,
       open: baseCandle.open,
-      high: hp,
-      low: lp,
-      close: cp,
+      high: Math.max(baseCandle.high, validLive),
+      low: Math.min(baseCandle.low, validLive),
+      close: validLive,
     };
   }, [baseCandle, livePrice]);
 
@@ -83,34 +92,15 @@ export function useChartInstance({
     let lineSeries: ISeriesApi<'Line'> | null = null;
 
     if (chartType === 'candles') {
-      candleSeries = chart.addSeries(CandlestickSeries, {
-        upColor: '#00F29D',
-        downColor: '#FF4D5A',
-        borderVisible: false,
-        wickUpColor: '#00F29D',
-        wickDownColor: '#FF4D5A',
-        priceLineVisible: true,
-        lastValueVisible: true,
-      });
+      candleSeries = chart.addSeries(CandlestickSeries, CANDLE_OPTIONS);
       candleSeriesRef.current = candleSeries;
     } else {
-      lineSeries = chart.addSeries(LineSeries, {
-        color: '#00F29D',
-        lineWidth: 2,
-        crosshairMarkerVisible: true,
-        priceLineVisible: true,
-        lastValueVisible: true,
-      });
+      lineSeries = chart.addSeries(LineSeries, LINE_OPTIONS);
       lineSeriesRef.current = lineSeries;
     }
 
-    const volumeSeries = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: 'volume' },
-      priceScaleId: '',
-    });
-    volumeSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.8, bottom: 0 },
-    });
+    const volumeSeries = chart.addSeries(HistogramSeries, VOLUME_OPTIONS);
+    volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
     volumeSeries.setData([]);
     volumeSeriesRef.current = volumeSeries;
 
@@ -147,6 +137,13 @@ export function useChartInstance({
   }, [chartType, chartContainerRef]);
 
   useEffect(() => {
+    if (!chartRef.current) return;
+    const mode =
+      scaleMode === '%' ? PriceScaleMode.Percentage : scaleMode === 'log' ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal;
+    chartRef.current.priceScale('right').applyOptions({ mode });
+  }, [scaleMode]);
+
+  useEffect(() => {
     const { candles, volumes } = resolveCandleData(realCandles, effectivePriceRef.current, activeTimeframe);
     if (candles.length === 0) return;
 
@@ -157,15 +154,18 @@ export function useChartInstance({
     lastCandleRef.current = candles[candles.length - 1] ?? null;
     lastVolumeRef.current = volumes[volumes.length - 1] ?? null;
 
-    if (!hasFittedRef.current || lastTimeframeRef.current !== activeTimeframe) {
+    if (checkNeedsRefit(hasFittedRef.current, lastTimeframeRef.current, activeTimeframe, lastRangeRef.current, activeRange)) {
       hasFittedRef.current = true;
       lastTimeframeRef.current = activeTimeframe;
+      lastRangeRef.current = activeRange;
       chartRef.current?.timeScale().fitContent();
     }
-  }, [realCandles, activeTimeframe]);
+  }, [realCandles, activeTimeframe, activeRange]);
 
   useEffect(() => {
     if (livePrice <= 0 || !lastCandleRef.current) return;
+    const diff = Math.abs(livePrice - lastCandleRef.current.close);
+    if (lastCandleRef.current.close > 0 && diff / lastCandleRef.current.close > 0.2) return;
 
     const updatedCandle: CandlestickData = {
       ...lastCandleRef.current,
@@ -174,7 +174,6 @@ export function useChartInstance({
       close: livePrice,
     };
     lastCandleRef.current = updatedCandle;
-
     candleSeriesRef.current?.update(updatedCandle);
     lineSeriesRef.current?.update({ time: updatedCandle.time, value: updatedCandle.close });
   }, [livePrice]);

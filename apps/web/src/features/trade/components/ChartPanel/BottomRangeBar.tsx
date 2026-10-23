@@ -1,15 +1,21 @@
 import { RANGES } from '../chartData';
 
-const SCALE_MODES = ['%', 'log', 'auto'] as const;
+export type ScaleMode = '%' | 'log' | 'auto';
+
+const SCALE_MODES: readonly ScaleMode[] = ['%', 'log', 'auto'];
 
 export function BottomRangeBar({
   activeRange,
   onSelectRange,
   utcTime,
+  scaleMode,
+  onSelectScaleMode,
 }: {
   activeRange: string;
   onSelectRange: (range: string) => void;
   utcTime: string;
+  scaleMode: ScaleMode;
+  onSelectScaleMode: (mode: ScaleMode) => void;
 }) {
   return (
     <div className="flex h-7 shrink-0 items-center justify-between border-t border-border-subtle px-3 bg-[#0C1018] text-[11px] text-text-secondary">
@@ -31,9 +37,17 @@ export function BottomRangeBar({
 
       <div className="font-mono text-[10px] text-text-secondary">{utcTime} (UTC)</div>
 
-      <div className="flex items-center gap-2 font-mono text-[10px]">
+      <div className="flex items-center gap-1 font-mono text-[10px]">
         {SCALE_MODES.map(mode => (
-          <button key={mode} type="button" className="hover:text-white transition-colors cursor-pointer">
+          <button
+            key={mode}
+            type="button"
+            onClick={() => onSelectScaleMode(mode)}
+            className={[
+              'px-1.5 py-0.5 rounded transition-colors cursor-pointer',
+              scaleMode === mode ? 'text-white font-bold bg-[#1A2333]' : 'text-[#8492A6] hover:text-white',
+            ].join(' ')}
+          >
             {mode}
           </button>
         ))}

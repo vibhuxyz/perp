@@ -6,8 +6,9 @@ import { ChartToolbar } from './ChartToolbar';
 import { ChartLegend } from './ChartLegend';
 import { DrawingToolsSidebar } from './DrawingToolsSidebar';
 import { HoverTooltip } from './HoverTooltip';
-import { BottomRangeBar } from './BottomRangeBar';
+import { BottomRangeBar, type ScaleMode } from './BottomRangeBar';
 import { useChartInstance } from './useChartInstance';
+import { RANGE_CONFIGS } from '../chartData';
 
 export function ChartPanel() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -15,6 +16,7 @@ export function ChartPanel() {
   const [chartType, setChartType] = useState<'candles' | 'line'>('candles');
   const [activeTimeframe, setActiveTimeframe] = useState<string>('1h');
   const [activeRange, setActiveRange] = useState<string>('1D');
+  const [scaleMode, setScaleMode] = useState<ScaleMode>('auto');
   const [utcTime, setUtcTime] = useState(() => new Date().toISOString().substring(11, 19));
 
   const currentMarket = useMarketStore(s => s.currentMarket);
@@ -22,9 +24,17 @@ export function ChartPanel() {
   const indexPrice = useMarketStore(s => s.indexPrice);
   const trades = useMarketStore(s => s.trades);
 
+  const activeConfig = useMemo(() => {
+    if (activeRange && RANGE_CONFIGS[activeRange]) {
+      const cfg = RANGE_CONFIGS[activeRange];
+      return { interval: cfg.interval, limit: cfg.limit, key: activeRange };
+    }
+    return { interval: activeTimeframe, limit: 150, key: activeTimeframe };
+  }, [activeRange, activeTimeframe]);
+
   const { data: realCandles } = useQuery({
-    queryKey: ['candles', currentMarket, activeTimeframe],
-    queryFn: () => fetchCandles(currentMarket, activeTimeframe, 100),
+    queryKey: ['candles', currentMarket, activeConfig.key, activeConfig.interval, activeConfig.limit],
+    queryFn: () => fetchCandles(currentMarket, activeConfig.interval, activeConfig.limit),
     refetchInterval: 15_000,
     staleTime: 10_000,
     retry: false,
@@ -37,6 +47,17 @@ export function ChartPanel() {
     return () => clearInterval(timer);
   }, []);
 
+  const handleSelectRange = (range: string) => {
+    setActiveRange(range);
+    const cfg = RANGE_CONFIGS[range];
+    if (cfg) setActiveTimeframe(cfg.interval);
+  };
+
+  const handleSelectTimeframe = (tf: string) => {
+    setActiveTimeframe(tf);
+    setActiveRange('');
+  };
+
   const effectivePrice = useMemo(() => {
     return parseFloat(lastTradePrice ?? indexPrice ?? '67432.1') || 67432.1;
   }, [lastTradePrice, indexPrice]);
@@ -44,7 +65,9 @@ export function ChartPanel() {
   const { hoverData, setHoverData, latestCandle } = useChartInstance({
     chartContainerRef,
     chartType,
-    activeTimeframe,
+    activeTimeframe: activeConfig.interval,
+    activeRange,
+    scaleMode,
     effectivePrice,
     lastTradePrice,
     indexPrice,
@@ -56,7 +79,7 @@ export function ChartPanel() {
     <div className="flex flex-col h-full bg-bg-card rounded-xl border border-border-subtle overflow-hidden select-none">
       <ChartToolbar
         activeTimeframe={activeTimeframe}
-        onSelectTimeframe={setActiveTimeframe}
+        onSelectTimeframe={handleSelectTimeframe}
         chartType={chartType}
         onToggleChartType={() => setChartType(prev => (prev === 'candles' ? 'line' : 'candles'))}
       />
@@ -77,7 +100,13 @@ export function ChartPanel() {
         {hoverData && <HoverTooltip hoverData={hoverData} />}
       </div>
 
-      <BottomRangeBar activeRange={activeRange} onSelectRange={setActiveRange} utcTime={utcTime} />
+      <BottomRangeBar
+        activeRange={activeRange}
+        onSelectRange={handleSelectRange}
+        scaleMode={scaleMode}
+        onSelectScaleMode={setScaleMode}
+        utcTime={utcTime}
+      />
     </div>
   );
 }

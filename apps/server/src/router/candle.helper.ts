@@ -12,6 +12,7 @@ const BINANCE_INTERVALS: Record<string, string> = {
   "4h": "4h",
   "1D": "1d",
   "1d": "1d",
+  "1w": "1w",
 };
 
 const INTERVAL_SECONDS: Record<string, number> = {
@@ -22,6 +23,7 @@ const INTERVAL_SECONDS: Record<string, number> = {
   "4h": 14400,
   "1D": 86400,
   "1d": 86400,
+  "1w": 604800,
 };
 
 export interface CandleDataPoint {
@@ -40,12 +42,12 @@ export async function fetchBinanceKlines(
 ): Promise<CandleDataPoint[] | null> {
   const symbol = BINANCE_SYMBOLS[market] || "BTCUSDT";
   const binanceInterval = BINANCE_INTERVALS[interval] || "1h";
-  const boundedLimit = Math.min(Math.max(limit || 100, 10), 300);
+  const boundedLimit = Math.min(Math.max(limit || 100, 10), 1000);
 
   try {
     const res = await fetch(
       `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${binanceInterval}&limit=${boundedLimit}`,
-      { signal: AbortSignal.timeout(3500) },
+      { signal: AbortSignal.timeout(4500) },
     );
     if (!res.ok) return null;
     const data = (await res.json()) as Array<[number, string, string, string, string, string, ...unknown[]]>;
@@ -69,7 +71,7 @@ export function generateFallbackCandles(
   limit = 100,
   interval = "1h",
 ): CandleDataPoint[] {
-  const count = Math.min(Math.max(limit || 100, 10), 300);
+  const count = Math.min(Math.max(limit || 100, 10), 1000);
   const stepSec = INTERVAL_SECONDS[interval] || 3600;
   const nowSec = Math.floor(Date.now() / 1000);
   const currentSlot = Math.floor(nowSec / stepSec) * stepSec;

@@ -1,4 +1,12 @@
-import { ColorType, CrosshairMode, type DeepPartial, type ChartOptions } from 'lightweight-charts';
+import {
+  ColorType,
+  CrosshairMode,
+  type DeepPartial,
+  type ChartOptions,
+  type CandlestickSeriesPartialOptions,
+  type LineSeriesPartialOptions,
+  type HistogramSeriesPartialOptions,
+} from 'lightweight-charts';
 
 export const CHART_OPTIONS: DeepPartial<ChartOptions> = {
   layout: {
@@ -13,26 +21,32 @@ export const CHART_OPTIONS: DeepPartial<ChartOptions> = {
   },
   crosshair: {
     mode: CrosshairMode.Normal,
-    vertLine: {
-      color: '#8492A6',
-      width: 1,
-      style: 3,
-      labelBackgroundColor: '#182233',
-    },
-    horzLine: {
-      color: '#8492A6',
-      width: 1,
-      style: 3,
-      labelBackgroundColor: '#182233',
-    },
+    vertLine: { color: '#8492A6', width: 1, style: 3, labelBackgroundColor: '#182233' },
+    horzLine: { color: '#8492A6', width: 1, style: 3, labelBackgroundColor: '#182233' },
   },
-  rightPriceScale: {
-    borderColor: '#1A2333',
-    textColor: '#8492A6',
-  },
-  timeScale: {
-    borderColor: '#1A2333',
-    timeVisible: true,
-    secondsVisible: false,
-  },
+  rightPriceScale: { borderColor: '#1A2333', textColor: '#8492A6' },
+  timeScale: { borderColor: '#1A2333', timeVisible: true, secondsVisible: false },
+};
+
+export const CANDLE_OPTIONS: CandlestickSeriesPartialOptions = {
+  upColor: '#00F29D',
+  downColor: '#FF4D5A',
+  borderVisible: false,
+  wickUpColor: '#00F29D',
+  wickDownColor: '#FF4D5A',
+  priceLineVisible: true,
+  lastValueVisible: true,
+};
+
+export const LINE_OPTIONS: LineSeriesPartialOptions = {
+  color: '#00F29D',
+  lineWidth: 2,
+  crosshairMarkerVisible: true,
+  priceLineVisible: true,
+  lastValueVisible: true,
+};
+
+export const VOLUME_OPTIONS: HistogramSeriesPartialOptions = {
+  priceFormat: { type: 'volume' },
+  priceScaleId: '',
 };

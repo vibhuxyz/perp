@@ -31,6 +31,21 @@ export interface HoverData {
 export const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1D'] as const;
 export const RANGES = ['1D', '5D', '1M', '3M', '6M', '1Y', 'All'] as const;
 
+export interface RangeConfig {
+  interval: string;
+  limit: number;
+}
+
+export const RANGE_CONFIGS: Record<string, RangeConfig> = {
+  '1D': { interval: '5m', limit: 288 },
+  '5D': { interval: '15m', limit: 480 },
+  '1M': { interval: '1h', limit: 720 },
+  '3M': { interval: '1D', limit: 90 },
+  '6M': { interval: '1D', limit: 180 },
+  '1Y': { interval: '1D', limit: 365 },
+  All: { interval: '1D', limit: 1000 },
+};
+
 export const TIMEFRAME_SECONDS: Record<string, number> = {
   '1m': 60,
   '5m': 300,
