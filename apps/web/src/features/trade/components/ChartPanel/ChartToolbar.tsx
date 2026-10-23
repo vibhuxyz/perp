@@ -13,11 +13,21 @@ export function ChartToolbar({
   onSelectTimeframe,
   chartType,
   onToggleChartType,
+  onOpenIndicators,
+  onOpenAlert,
+  onToggleFullscreen,
+  activeIndicatorsCount = 0,
+  activeAlertsCount = 0,
 }: {
   activeTimeframe: string;
   onSelectTimeframe: (tf: string) => void;
   chartType: 'candles' | 'line';
   onToggleChartType: () => void;
+  onOpenIndicators?: () => void;
+  onOpenAlert?: () => void;
+  onToggleFullscreen?: () => void;
+  activeIndicatorsCount?: number;
+  activeAlertsCount?: number;
 }) {
   const isCandles = chartType === 'candles';
 
@@ -47,8 +57,10 @@ export function ChartToolbar({
         <button
           type="button"
           onClick={onToggleChartType}
-          className={`p-1 rounded transition-colors cursor-pointer ${
-            isCandles ? 'text-profit bg-[#141C2B]' : 'text-text-secondary hover:text-white hover:bg-bg-elevated'
+          className={`p-1.5 rounded transition-colors cursor-pointer ${
+            isCandles
+              ? 'text-profit bg-[#141C2B] border border-profit/30'
+              : 'text-[#06B6D4] bg-[#141C2B] border border-[#06B6D4]/30'
           }`}
           title={isCandles ? 'Switch to Line chart' : 'Switch to Candlestick chart'}
         >
@@ -57,18 +69,30 @@ export function ChartToolbar({
 
         <button
           type="button"
-          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-text-secondary hover:text-white hover:bg-bg-elevated transition-colors cursor-pointer"
+          onClick={onOpenIndicators}
+          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium text-text-secondary hover:text-white hover:bg-bg-elevated transition-colors cursor-pointer"
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
           <span>Indicators</span>
+          {activeIndicatorsCount > 0 && (
+            <span className="rounded-full bg-primary/20 text-primary px-1.5 py-0.2 text-[10px] font-mono font-bold">
+              {activeIndicatorsCount}
+            </span>
+          )}
         </button>
 
         <button
           type="button"
-          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-text-secondary hover:text-white hover:bg-bg-elevated transition-colors cursor-pointer"
+          onClick={onOpenAlert}
+          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium text-text-secondary hover:text-white hover:bg-bg-elevated transition-colors cursor-pointer"
         >
           <Bell className="h-3.5 w-3.5" />
           <span>Alert</span>
+          {activeAlertsCount > 0 && (
+            <span className="rounded-full bg-[#F59E0B]/20 text-[#F59E0B] px-1.5 py-0.2 text-[10px] font-mono font-bold">
+              {activeAlertsCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -76,7 +100,12 @@ export function ChartToolbar({
         <button type="button" className="p-1 hover:text-white hover:bg-bg-elevated rounded transition-colors cursor-pointer" title="Trendline">
           <TrendingUp className="h-3.5 w-3.5" />
         </button>
-        <button type="button" className="p-1 hover:text-white hover:bg-bg-elevated rounded transition-colors cursor-pointer" title="Fullscreen">
+        <button
+          type="button"
+          onClick={onToggleFullscreen}
+          className="p-1 hover:text-white hover:bg-bg-elevated rounded transition-colors cursor-pointer"
+          title="Fullscreen"
+        >
           <Maximize2 className="h-3.5 w-3.5" />
         </button>
       </div>

@@ -1,28 +1,45 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useMarketStore } from '@/stores/market.store';
+import { useChartSettingsStore } from '@/stores/chartSettings.store';
 import { fetchCandles } from '@/features/trade/api/tradeApi';
 import { ChartToolbar } from './ChartToolbar';
 import { ChartLegend } from './ChartLegend';
 import { DrawingToolsSidebar } from './DrawingToolsSidebar';
 import { HoverTooltip } from './HoverTooltip';
 import { BottomRangeBar, type ScaleMode } from './BottomRangeBar';
+import { IndicatorsModal } from './IndicatorsModal';
+import { AlertModal } from './AlertModal';
 import { useChartInstance } from './useChartInstance';
 import { RANGE_CONFIGS } from '../chartData';
 
 export function ChartPanel() {
+  const panelRef = useRef<HTMLDivElement>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
   const [chartType, setChartType] = useState<'candles' | 'line'>('candles');
   const [activeTimeframe, setActiveTimeframe] = useState<string>('1h');
   const [activeRange, setActiveRange] = useState<string>('1D');
   const [scaleMode, setScaleMode] = useState<ScaleMode>('auto');
+  const [isIndicatorsOpen, setIsIndicatorsOpen] = useState(false);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [utcTime, setUtcTime] = useState(() => new Date().toISOString().substring(11, 19));
 
   const currentMarket = useMarketStore(s => s.currentMarket);
   const lastTradePrice = useMarketStore(s => s.lastTradePrice);
   const indexPrice = useMarketStore(s => s.indexPrice);
   const trades = useMarketStore(s => s.trades);
+
+  const indicators = useChartSettingsStore(s => s.indicators);
+  const alerts = useChartSettingsStore(s => s.alerts);
+  const activeIndicatorsCount = useMemo(
+    () => Object.entries(indicators).filter(([k, v]) => k !== 'volume' && v).length,
+    [indicators],
+  );
+  const activeAlertsCount = useMemo(
+    () => alerts.filter(a => a.market === currentMarket && !a.triggered).length,
+    [alerts, currentMarket],
+  );
 
   const activeConfig = useMemo(() => {
     if (activeRange && RANGE_CONFIGS[activeRange]) {
@@ -58,6 +75,14 @@ export function ChartPanel() {
     setActiveRange('');
   };
 
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      void panelRef.current?.requestFullscreen();
+    } else {
+      void document.exitFullscreen();
+    }
+  };
+
   const effectivePrice = useMemo(() => {
     return parseFloat(lastTradePrice ?? indexPrice ?? '67432.1') || 67432.1;
   }, [lastTradePrice, indexPrice]);
@@ -68,6 +93,7 @@ export function ChartPanel() {
     activeTimeframe: activeConfig.interval,
     activeRange,
     scaleMode,
+    market: currentMarket,
     effectivePrice,
     lastTradePrice,
     indexPrice,
@@ -76,12 +102,20 @@ export function ChartPanel() {
   });
 
   return (
-    <div className="flex flex-col h-full bg-bg-card rounded-xl border border-border-subtle overflow-hidden select-none">
+    <div
+      ref={panelRef}
+      className="flex flex-col h-full bg-bg-card rounded-xl border border-border-subtle overflow-hidden select-none"
+    >
       <ChartToolbar
         activeTimeframe={activeTimeframe}
         onSelectTimeframe={handleSelectTimeframe}
         chartType={chartType}
         onToggleChartType={() => setChartType(prev => (prev === 'candles' ? 'line' : 'candles'))}
+        onOpenIndicators={() => setIsIndicatorsOpen(true)}
+        onOpenAlert={() => setIsAlertOpen(true)}
+        onToggleFullscreen={handleToggleFullscreen}
+        activeIndicatorsCount={activeIndicatorsCount}
+        activeAlertsCount={activeAlertsCount}
       />
 
       <ChartLegend
@@ -106,6 +140,14 @@ export function ChartPanel() {
         scaleMode={scaleMode}
         onSelectScaleMode={setScaleMode}
         utcTime={utcTime}
+      />
+
+      <IndicatorsModal isOpen={isIndicatorsOpen} onClose={() => setIsIndicatorsOpen(false)} />
+      <AlertModal
+        isOpen={isAlertOpen}
+        onClose={() => setIsAlertOpen(false)}
+        currentPrice={effectivePrice}
+        market={currentMarket}
       />
     </div>
   );
