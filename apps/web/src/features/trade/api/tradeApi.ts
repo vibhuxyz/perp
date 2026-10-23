@@ -128,8 +128,8 @@ const candleItemSchema = z.object({
 
 export type CandleItem = z.infer<typeof candleItemSchema>;
 
-export const fetchCandles = (market: string, limit = 100) =>
-  api(`/api/candles?market=${market}&limit=${limit}`, z.array(candleItemSchema));
+export const fetchCandles = (market: string, interval = '1h', limit = 100) =>
+  api(`/api/candles?market=${market}&interval=${interval}&limit=${limit}`, z.array(candleItemSchema));
 
 const userFillSchema = z.object({
   fillId: z.string(),
@@ -145,8 +145,7 @@ const userFillSchema = z.object({
 
 export type UserFill = z.infer<typeof userFillSchema>;
 
-export const fetchUserFills = () =>
-  api("/api/fills", z.array(userFillSchema));
+export const fetchUserFills = () => api("/api/fills", z.array(userFillSchema));
 
 const orderHistoryItemSchema = z.object({
   orderId: z.string(),
@@ -163,8 +162,7 @@ const orderHistoryItemSchema = z.object({
 
 export type OrderHistoryItem = z.infer<typeof orderHistoryItemSchema>;
 
-export const fetchOrderHistory = () =>
-  api("/api/orders/history", z.array(orderHistoryItemSchema));
+export const fetchOrderHistory = () => api("/api/orders/history", z.array(orderHistoryItemSchema));
 
 const positionHistoryItemSchema = z.object({
   id: z.string(),
@@ -179,8 +177,7 @@ const positionHistoryItemSchema = z.object({
 
 export type PositionHistoryItem = z.infer<typeof positionHistoryItemSchema>;
 
-export const fetchPositionHistory = () =>
-  api("/api/positions/history", z.array(positionHistoryItemSchema));
+export const fetchPositionHistory = () => api("/api/positions/history", z.array(positionHistoryItemSchema));
 
 const accountActivityItemSchema = z.object({
   id: z.string(),

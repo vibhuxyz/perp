@@ -46,6 +46,13 @@ export function useChartInstance({
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const lastCandleRef = useRef<CandlestickData | null>(null);
   const lastVolumeRef = useRef<VolumeData | null>(null);
+  const hasFittedRef = useRef(false);
+  const lastTimeframeRef = useRef(activeTimeframe);
+  const effectivePriceRef = useRef(effectivePrice);
+
+  useEffect(() => {
+    effectivePriceRef.current = effectivePrice;
+  }, [effectivePrice]);
 
   const [hoverData, setHoverData] = useState<HoverData | null>(null);
 
@@ -140,7 +147,7 @@ export function useChartInstance({
   }, [chartType, chartContainerRef]);
 
   useEffect(() => {
-    const { candles, volumes } = resolveCandleData(realCandles, effectivePrice, activeTimeframe);
+    const { candles, volumes } = resolveCandleData(realCandles, effectivePriceRef.current, activeTimeframe);
     if (candles.length === 0) return;
 
     candleSeriesRef.current?.setData(candles);
@@ -149,8 +156,13 @@ export function useChartInstance({
 
     lastCandleRef.current = candles[candles.length - 1] ?? null;
     lastVolumeRef.current = volumes[volumes.length - 1] ?? null;
-    chartRef.current?.timeScale().fitContent();
-  }, [realCandles, effectivePrice, activeTimeframe]);
+
+    if (!hasFittedRef.current || lastTimeframeRef.current !== activeTimeframe) {
+      hasFittedRef.current = true;
+      lastTimeframeRef.current = activeTimeframe;
+      chartRef.current?.timeScale().fitContent();
+    }
+  }, [realCandles, activeTimeframe]);
 
   useEffect(() => {
     if (livePrice <= 0 || !lastCandleRef.current) return;

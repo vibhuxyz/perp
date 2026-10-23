@@ -70,14 +70,15 @@ export function generateInitialCandles(
   for (let i = 0; i < count; i++) {
     const time = (currentSlot - i * intervalSeconds) as UTCTimestamp;
     const volatility = currentClose * 0.0035;
-    const change = (Math.sin(i * 0.6) + (Math.random() - 0.49)) * volatility;
+    const change = Math.sin(i * 0.55) * volatility;
     const open = i === 0 ? currentClose - change : currentClose;
     const close = i === 0 ? currentClose : open + change;
-    const high = Math.max(open, close) + Math.random() * volatility * 0.4;
-    const low = Math.min(open, close) - Math.random() * volatility * 0.4;
+    const spread = Math.abs(Math.cos(i * 0.77)) * volatility * 0.4;
+    const high = Math.max(open, close) + spread;
+    const low = Math.min(open, close) - spread;
 
     const isUp = close >= open;
-    const volume = Math.round((4 + Math.random() * 20) * 100) / 100;
+    const volume = Math.round((8 + Math.abs(Math.sin(i * 0.9)) * 15) * 100) / 100;
 
     rawCandles.push({
       time,

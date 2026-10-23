@@ -13,7 +13,7 @@ import {
 import { getCachedBalance } from "@repo/shared";
 import { db, candlesTable } from "@repo/db";
 import { desc, eq } from "drizzle-orm";
-import { generateFallbackCandles } from "./candle.helper";
+import { generateFallbackCandles, fetchBinanceKlines } from "./candle.helper";
 import {
   closedPositionsHistory,
   recordClosedPosition,
@@ -79,13 +79,16 @@ router.get("/trades", (req, res) => {
 
 router.get("/candles", async (req, res) => {
   const market = (req.query.market as string) ?? MARKET;
+  const interval = (req.query.interval as string) ?? "1h";
+  const limit = Number(req.query.limit) || 100;
+
   try {
     const rows = await db
       .select()
       .from(candlesTable)
       .where(eq(candlesTable.market, market))
       .orderBy(desc(candlesTable.time))
-      .limit(100);
+      .limit(limit);
 
     if (rows.length > 0) {
       return res.json(rows.reverse().map(r => ({
@@ -101,8 +104,13 @@ router.get("/candles", async (req, res) => {
     void _err;
   }
 
+  const liveKlines = await fetchBinanceKlines(market, interval, limit);
+  if (liveKlines && liveKlines.length > 0) {
+    return res.json(liveKlines);
+  }
+
   const currentPrice = Number(exchange.matchingEngine.orderbooks.get(market)?.lastTradePrice ?? getIndexPrice(market));
-  return res.json(generateFallbackCandles(currentPrice, Number(req.query.limit)));
+  return res.json(generateFallbackCandles(currentPrice, limit, interval));
 });
 
 router.get("/positions", (req, res) => {

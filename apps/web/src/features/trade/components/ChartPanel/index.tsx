@@ -23,9 +23,10 @@ export function ChartPanel() {
   const trades = useMarketStore(s => s.trades);
 
   const { data: realCandles } = useQuery({
-    queryKey: ['candles', currentMarket],
-    queryFn: () => fetchCandles(currentMarket, 100),
-    refetchInterval: 5_000,
+    queryKey: ['candles', currentMarket, activeTimeframe],
+    queryFn: () => fetchCandles(currentMarket, activeTimeframe, 100),
+    refetchInterval: 15_000,
+    staleTime: 10_000,
     retry: false,
   });
 
