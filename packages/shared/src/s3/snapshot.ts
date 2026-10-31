@@ -12,7 +12,7 @@ export function getS3Client(): S3Client | null {
 
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-  const region = process.env.AWS_REGION || "us-east-1";
+  const region = process.env.AWS_REGION || "ap-south-1";
   const endpoint = process.env.S3_ENDPOINT || process.env.AWS_ENDPOINT_URL;
 
   return new S3Client({
