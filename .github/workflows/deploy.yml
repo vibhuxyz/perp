@@ -35,8 +35,11 @@ jobs:
             bun "$f"
           done
 
+  # -------------------------------------------------------------
+  # Web Deployment to AWS S3
+  # -------------------------------------------------------------
   deploy-web-s3:
-    name: Build & Deploy Web to S3
+    name: "Deploy: Web to AWS S3"
     needs: [verify]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
@@ -98,53 +101,164 @@ jobs:
             aws cloudfront create-invalidation --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" --paths "/*"
           fi
 
-  build-and-push-docker:
-    name: Build & Push Images to Docker Hub
+  # -------------------------------------------------------------
+  # Individual Visual Build & Push Jobs (One node per image)
+  # -------------------------------------------------------------
+  build-server:
+    name: "Build: perp-server"
     needs: [verify]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    strategy:
-      matrix:
-        service:
-          - name: perp-server
-            dockerfile: infrastructure/docker/Dockerfile.server
-          - name: perp-api-gateway
-            dockerfile: infrastructure/docker/Dockerfile.api-gateway
-          - name: perp-ws
-            dockerfile: infrastructure/docker/Dockerfile.ws
-          - name: perp-db-writer
-            dockerfile: infrastructure/docker/Dockerfile.db-writer
-          - name: perp-mark-price-poller
-            dockerfile: infrastructure/docker/Dockerfile.mark-price-poller
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD || secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and Push Docker Image
-        uses: docker/build-push-action@v5
+      - uses: docker/build-push-action@v5
         with:
           context: .
-          file: ${{ matrix.service.dockerfile }}
+          file: infrastructure/docker/Dockerfile.server
           push: true
           platforms: linux/amd64
           tags: |
-            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:latest
-            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/${{ matrix.service.name }}:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/perp-server:latest
+            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/perp-server:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  build-api-gateway:
+    name: "Build: perp-api-gateway"
+    needs: [verify]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD || secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.api-gateway
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/perp-api-gateway:latest
+            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/perp-api-gateway:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-ws:
+    name: "Build: perp-ws"
+    needs: [verify]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD || secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.ws
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/perp-ws:latest
+            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/perp-ws:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-db-writer:
+    name: "Build: perp-db-writer"
+    needs: [verify]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD || secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.db-writer
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/perp-db-writer:latest
+            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/perp-db-writer:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-mark-price-poller:
+    name: "Build: perp-mark-price-poller"
+    needs: [verify]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD || secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.mark-price-poller
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/perp-mark-price-poller:latest
+            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/perp-mark-price-poller:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-web-image:
+    name: "Build: perp-web"
+    needs: [verify]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD || secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.web
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/perp-web:latest
+            ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}/perp-web:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # -------------------------------------------------------------
+  # Deploy to EC2 (Waits for backend images to finish building)
+  # -------------------------------------------------------------
   deploy-ec2:
-    name: Deploy Containers to EC2
-    needs: [build-and-push-docker]
+    name: "Deploy: Containers to EC2"
+    needs:
+      - build-server
+      - build-api-gateway
+      - build-ws
+      - build-db-writer
+      - build-mark-price-poller
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
@@ -152,11 +266,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup SSH Key
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.EC2_HOST_IP || secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.EC2_HOST_IP || secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
 
       - name: Pull Images and Restart on EC2
         env:
@@ -171,7 +287,7 @@ jobs:
           CORS_ORIGINS: ${{ secrets.CORS_ORIGINS || '*' }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          ssh ${EC2_USER}@${EC2_HOST} << EOF
+          ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << EOF
             set -e
 
             # Ensure shared Docker network exists
