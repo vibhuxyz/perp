@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import type { Collateral, Fill, Position } from "engine";
+import { uploadSnapshotToS3, downloadLatestSnapshotFromS3 } from "@repo/shared";
 
 import {
   recordTrade,
@@ -15,6 +16,8 @@ export {
   cacheUserState,
   startDbWriterConsumer,
   startDbWriterWorker,
+  uploadSnapshotToS3,
+  downloadLatestSnapshotFromS3,
 };
 
 export interface ExchangeState {
@@ -35,6 +38,9 @@ export async function snapshot(state: ExchangeState, fills: Fill[], path: string
   );
 
   await writeFile(path, json);
+
+  // Background non-blocking backup to Amazon S3
+  void uploadSnapshotToS3(json).catch(() => {});
 }
 
 if (import.meta.main) {

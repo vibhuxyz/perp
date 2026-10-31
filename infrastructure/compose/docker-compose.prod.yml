@@ -20,6 +20,10 @@ services:
       REDIS_URL: ${REDIS_URL}
       MONGODB_URI: ${MONGODB_URI:-}
       KAFKA_BROKERS: "shared-kafka:9092"
+      S3_BACKUP_BUCKET: ${S3_BACKUP_BUCKET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
 
   server:
     image: ${DOCKERHUB_USERNAME}/perp-server:${IMAGE_TAG:-latest}
@@ -41,6 +45,10 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       ACCESS_TOKEN_JWT_SECRET_KEY: ${JWT_SECRET}
       REFRESH_TOKEN_JWT_SECRET_KEY: ${JWT_SECRET}
+      S3_BACKUP_BUCKET: ${S3_BACKUP_BUCKET:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
 
   ws:
     image: ${DOCKERHUB_USERNAME}/perp-ws:${IMAGE_TAG:-latest}

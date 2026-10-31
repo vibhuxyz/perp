@@ -90,7 +90,7 @@ jobs:
       - name: Sync Static Assets to S3
         if: steps.s3_check.outputs.enabled == 'true'
         run: |
-          aws s3 sync apps/web/dist s3://${{ secrets.S3_BUCKET_NAME }} --delete
+          aws s3 sync apps/web/dist s3://${{ secrets.S3_BUCKET_NAME }}/${{ secrets.S3_WEB_PREFIX || 'web' }} --delete
 
       - name: Invalidate CloudFront Cache (Optional)
         if: steps.s3_check.outputs.enabled == 'true'
@@ -285,6 +285,10 @@ jobs:
           REDIS_URL: ${{ secrets.REDIS_URL || 'redis://localhost:6379' }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           CORS_ORIGINS: ${{ secrets.CORS_ORIGINS || '*' }}
+          S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET || secrets.S3_BUCKET_NAME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << EOF
@@ -323,6 +327,10 @@ jobs:
             KAFKA_BROKERS=shared-kafka:9092
             WAL_PATH=/data/engine.wal
             CORS_ORIGINS=${CORS_ORIGINS}
+            S3_BACKUP_BUCKET=${S3_BACKUP_BUCKET}
+            AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            AWS_REGION=${AWS_REGION}
           ENVFILE
 
             # Copy .env to compose directory so docker compose always finds it
