@@ -281,8 +281,8 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKER_USERNAME || secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKER_PASSWORD || secrets.DOCKERHUB_TOKEN }}
           JWT_SECRET: ${{ secrets.JWT_SECRET || 'prod-perp-jwt-secret-key-32chars-min' }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          REDIS_URL: ${{ secrets.REDIS_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://perp:password@localhost:5432/perp_db' }}
+          REDIS_URL: ${{ secrets.REDIS_URL || 'redis://localhost:6379' }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           CORS_ORIGINS: ${{ secrets.CORS_ORIGINS || '*' }}
           IMAGE_TAG: ${{ github.sha }}
@@ -290,8 +290,10 @@ jobs:
           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << EOF
             set -e
 
-            # Ensure shared Docker network exists
-            docker network create shared-services 2>/dev/null || true
+            # Ensure Docker socket permissions & shared network
+            sudo usermod -aG docker \$USER || true
+            sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
+            sudo docker network create shared-services 2>/dev/null || true
 
             APP_DIR="/opt/perp"
             sudo mkdir -p \${APP_DIR}
@@ -323,17 +325,21 @@ jobs:
             CORS_ORIGINS=${CORS_ORIGINS}
           ENVFILE
 
-            echo "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+            # Copy .env to compose directory so docker compose always finds it
+            cp \${APP_DIR}/.env \${APP_DIR}/infrastructure/compose/.env || true
+
+            # Authenticate with Docker Hub
+            echo "${DOCKERHUB_TOKEN}" | sudo docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
 
             echo "=== Pulling fresh images from Docker Hub ==="
-            docker compose -f infrastructure/compose/docker-compose.prod.yml pull
+            sudo docker compose --env-file \${APP_DIR}/.env -f infrastructure/compose/docker-compose.prod.yml pull
 
             echo "=== Launching updated containers ==="
-            docker compose -f infrastructure/compose/docker-compose.prod.yml up -d --remove-orphans
+            sudo docker compose --env-file \${APP_DIR}/.env -f infrastructure/compose/docker-compose.prod.yml up -d --remove-orphans
 
             echo "=== Deployment Status ==="
             sleep 5
-            docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
+            sudo docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
 
-            docker image prune -f
+            sudo docker image prune -f
           EOF
