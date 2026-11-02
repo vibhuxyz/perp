@@ -37,6 +37,8 @@ services:
           - perp-server
       shared-services:
     environment:
+      PORT: ${PORT:-3000}
+      WS_PORT: ${WS_PORT:-7070}
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
       MONGODB_URI: ${MONGODB_URI:-}
